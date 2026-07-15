@@ -124,7 +124,7 @@ export default function Footer() {
               {[
                 { label: "About", href: "/#about" },
                 { label: "Tech Stack", href: "/#tech" },
-                { label: "Download Git", href: "/download-git" },
+                { label: "Downloads", href: "/downloads" },
                 { label: "Contact", href: "/#contact" },
                 { label: "GitHub", href: "https://github.com/irfangitdevops" },
               ].map((item) =>

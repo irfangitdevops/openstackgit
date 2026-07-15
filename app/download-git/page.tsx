@@ -118,22 +118,41 @@ export default async function DownloadGitPage() {
               We&apos;re OpenStack Dev — a full-stack, mobile, and DevOps agency. If you need
               CI/CD, repo hosting, or a production app built and shipped, let&apos;s talk.
             </p>
-            <Link
-              href="/#contact"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                background: "var(--primary)",
-                color: "#fff",
-                padding: "12px 28px",
-                borderRadius: "var(--radius)",
-                fontSize: 15,
-                fontWeight: 600,
-              }}
-            >
-              Get in Touch
-            </Link>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              <Link
+                href="/#contact"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "var(--primary)",
+                  color: "#fff",
+                  padding: "12px 28px",
+                  borderRadius: "var(--radius)",
+                  fontSize: 15,
+                  fontWeight: 600,
+                }}
+              >
+                Get in Touch
+              </Link>
+              <Link
+                href="/downloads"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "transparent",
+                  color: "#fff",
+                  padding: "12px 28px",
+                  borderRadius: "var(--radius)",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  border: "2px solid rgba(255,255,255,0.2)",
+                }}
+              >
+                Browse All DevOps Tools
+              </Link>
+            </div>
           </div>
         </section>
       </main>
