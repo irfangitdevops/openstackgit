@@ -94,11 +94,9 @@ export default async function DownloadCategoryPage({
               }}
             >
               {cat.tools.map((tool) => (
-                <a
+                <Link
                   key={tool.name}
-                  href={tool.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={`/downloads/${cat.slug}/${tool.slug}`}
                   style={{
                     display: "block",
                     background: "var(--bg-alt)",
@@ -130,9 +128,9 @@ export default async function DownloadCategoryPage({
                     <p style={{ fontSize: 12, color: "#B45309", lineHeight: 1.5, margin: "8px 0 0" }}>{tool.note}</p>
                   )}
                   <span style={{ display: "inline-block", marginTop: 12, fontSize: 13, fontWeight: 600, color: "var(--primary)" }}>
-                    Get it →
+                    View versions &amp; download →
                   </span>
-                </a>
+                </Link>
               ))}
             </div>
           </div>

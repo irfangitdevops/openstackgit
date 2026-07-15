@@ -13,6 +13,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      # Optional: raises GitHub API limit for /downloads tool pages (on-demand ISR).
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1"]
       interval: 30s
