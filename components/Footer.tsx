@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+
 export default function Footer() {
   const year = new Date().getFullYear();
 
@@ -79,14 +81,14 @@ export default function Footer() {
             <ul style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {["Full-Stack Web", "Mobile Apps", "ERP Systems", "DevOps", "SEO & Web Presence", "Security Audit"].map((item) => (
                 <li key={item}>
-                  <a
-                    href="#services"
+                  <Link
+                    href="/#services"
                     style={{ fontSize: 14, color: "#9CA3AF", transition: "color var(--transition)" }}
                     onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "var(--primary)")}
                     onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "#9CA3AF")}
                   >
                     {item}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -100,14 +102,14 @@ export default function Footer() {
             <ul style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {["Sahlaat", "Easy Busy ERP", "Dr. Kumud Kumar", "CP Homes", "Royal Mint Hotel", "Vedantika Farms"].map((item) => (
                 <li key={item}>
-                  <a
-                    href="#work"
+                  <Link
+                    href="/#work"
                     style={{ fontSize: 14, color: "#9CA3AF", transition: "color var(--transition)" }}
                     onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "var(--primary)")}
                     onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "#9CA3AF")}
                   >
                     {item}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -120,24 +122,38 @@ export default function Footer() {
             </h4>
             <ul style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
-                { label: "About", href: "#about" },
-                { label: "Tech Stack", href: "#tech" },
-                { label: "Contact", href: "#contact" },
+                { label: "About", href: "/#about" },
+                { label: "Tech Stack", href: "/#tech" },
+                { label: "Download Git", href: "/download-git" },
+                { label: "Contact", href: "/#contact" },
                 { label: "GitHub", href: "https://github.com/irfangitdevops" },
-              ].map((item) => (
-                <li key={item.label}>
-                  <a
-                    href={item.href}
-                    target={item.href.startsWith("http") ? "_blank" : undefined}
-                    rel="noopener noreferrer"
-                    style={{ fontSize: 14, color: "#9CA3AF", transition: "color var(--transition)" }}
-                    onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "var(--primary)")}
-                    onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "#9CA3AF")}
-                  >
-                    {item.label}
-                  </a>
-                </li>
-              ))}
+              ].map((item) =>
+                item.href.startsWith("http") ? (
+                  <li key={item.label}>
+                    <a
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: 14, color: "#9CA3AF", transition: "color var(--transition)" }}
+                      onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "var(--primary)")}
+                      onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "#9CA3AF")}
+                    >
+                      {item.label}
+                    </a>
+                  </li>
+                ) : (
+                  <li key={item.label}>
+                    <Link
+                      href={item.href}
+                      style={{ fontSize: 14, color: "#9CA3AF", transition: "color var(--transition)" }}
+                      onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "var(--primary)")}
+                      onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "#9CA3AF")}
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                )
+              )}
             </ul>
           </div>
         </div>

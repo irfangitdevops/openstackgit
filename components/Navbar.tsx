@@ -1,13 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 const links = [
-  { label: "Home", href: "#home" },
-  { label: "Services", href: "#services" },
-  { label: "Work", href: "#work" },
-  { label: "Tech Stack", href: "#tech" },
-  { label: "About", href: "#about" },
-  { label: "Contact", href: "#contact" },
+  { label: "Home", href: "/#home" },
+  { label: "Services", href: "/#services" },
+  { label: "Work", href: "/#work" },
+  { label: "Tech Stack", href: "/#tech" },
+  { label: "Download Git", href: "/download-git" },
+  { label: "About", href: "/#about" },
+  { label: "Contact", href: "/#contact" },
 ];
 
 export default function Navbar() {
@@ -48,7 +50,7 @@ export default function Navbar() {
         }}
       >
         {/* Brand */}
-        <a href="#home" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div
             style={{
               width: 36,
@@ -68,7 +70,7 @@ export default function Navbar() {
           <span style={{ fontSize: 20, fontWeight: 700, color: "var(--primary)" }}>
             OpenStack Dev
           </span>
-        </a>
+        </Link>
 
         {/* Desktop links */}
         <ul
@@ -83,7 +85,7 @@ export default function Navbar() {
         >
           {links.map((l) => (
             <li key={l.href}>
-              <a
+              <Link
                 href={l.href}
                 style={{
                   fontSize: 14,
@@ -96,15 +98,15 @@ export default function Navbar() {
                 onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "var(--text-secondary)")}
               >
                 {l.label}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
 
         {/* CTA */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a
-            href="#contact"
+          <Link
+            href="/#contact"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -129,7 +131,7 @@ export default function Navbar() {
             }}
           >
             Hire Us
-          </a>
+          </Link>
 
           {/* Hamburger */}
           <button
@@ -165,7 +167,7 @@ export default function Navbar() {
           <ul style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {links.map((l) => (
               <li key={l.href}>
-                <a
+                <Link
                   href={l.href}
                   onClick={() => setOpen(false)}
                   style={{
@@ -178,12 +180,12 @@ export default function Navbar() {
                   }}
                 >
                   {l.label}
-                </a>
+                </Link>
               </li>
             ))}
             <li style={{ marginTop: 12 }}>
-              <a
-                href="#contact"
+              <Link
+                href="/#contact"
                 onClick={() => setOpen(false)}
                 style={{
                   display: "block",
@@ -196,7 +198,7 @@ export default function Navbar() {
                 }}
               >
                 Hire Us
-              </a>
+              </Link>
             </li>
           </ul>
         </div>
