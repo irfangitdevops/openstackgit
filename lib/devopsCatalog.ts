@@ -9,6 +9,7 @@ export type DevOpsTool = {
 
 export type DevOpsCategory = {
   category: string;
+  slug: string;
   blurb: string;
   tools: DevOpsTool[];
 };
@@ -16,6 +17,7 @@ export type DevOpsCategory = {
 export const devopsCatalog: DevOpsCategory[] = [
   {
     category: "IaaS / Self-Hosted Cloud",
+    slug: "iaas",
     blurb: "Run your own private cloud instead of renting one.",
     tools: [
       { name: "OpenStack", license: "Apache-2.0", openSource: true, description: "The de-facto open source IaaS platform — compute, storage, and networking at scale.", url: "https://www.openstack.org/software/" },
@@ -27,6 +29,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Infrastructure as Code",
+    slug: "infrastructure-as-code",
     blurb: "Provision infrastructure from declarative config.",
     tools: [
       { name: "OpenTofu", license: "MPL-2.0", openSource: true, description: "Community-driven, fully open source fork of Terraform.", url: "https://opentofu.org/docs/intro/install/" },
@@ -37,6 +40,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Configuration Management",
+    slug: "configuration-management",
     blurb: "Keep server/app configuration consistent at scale.",
     tools: [
       { name: "Ansible", license: "GPL-3.0", openSource: true, description: "Agentless automation for provisioning, config management, and app deployment.", url: "https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html" },
@@ -47,6 +51,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Containers & Runtime",
+    slug: "containers-runtime",
     blurb: "Build and run containers.",
     tools: [
       { name: "Docker Engine", license: "Apache-2.0", openSource: true, description: "The standard container runtime and build toolchain.", url: "https://docs.docker.com/engine/install/" },
@@ -58,6 +63,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Container Orchestration",
+    slug: "orchestration",
     blurb: "Schedule and manage containers across clusters.",
     tools: [
       { name: "Kubernetes", license: "Apache-2.0", openSource: true, description: "The standard for container orchestration at scale.", url: "https://kubernetes.io/docs/tasks/tools/" },
@@ -70,6 +76,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "CI (Continuous Integration)",
+    slug: "ci",
     blurb: "Automate builds, tests, and checks on every commit.",
     tools: [
       { name: "Jenkins", license: "MIT", openSource: true, description: "The original extensible self-hosted automation server.", url: "https://www.jenkins.io/download/" },
@@ -81,6 +88,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "CD / GitOps",
+    slug: "cd-gitops",
     blurb: "Continuously deliver and sync deployments from Git.",
     tools: [
       { name: "Argo CD", license: "Apache-2.0", openSource: true, description: "Declarative GitOps continuous delivery for Kubernetes.", url: "https://argo-cd.readthedocs.io/en/stable/getting_started/" },
@@ -92,6 +100,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Artifact & Container Registries",
+    slug: "registries",
     blurb: "Store and distribute build artifacts and images.",
     tools: [
       { name: "Harbor", license: "Apache-2.0", openSource: true, description: "Container registry with vulnerability scanning and RBAC.", url: "https://goharbor.io/docs/main/install-config/" },
@@ -101,6 +110,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Monitoring",
+    slug: "monitoring",
     blurb: "Metrics, dashboards, and alerting.",
     tools: [
       { name: "Prometheus", license: "Apache-2.0", openSource: true, description: "Pull-based metrics collection and alerting, the CNCF standard.", url: "https://prometheus.io/download/" },
@@ -112,6 +122,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Logging & Tracing",
+    slug: "logging-tracing",
     blurb: "Aggregate logs and trace requests across services.",
     tools: [
       { name: "Grafana Loki", license: "AGPL-3.0", openSource: true, description: "Log aggregation designed to work natively with Grafana.", url: "https://grafana.com/docs/loki/latest/setup/install/" },
@@ -123,6 +134,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Secrets Management",
+    slug: "secrets",
     blurb: "Store and inject credentials, keys, and certificates.",
     tools: [
       { name: "OpenBao", license: "MPL-2.0", openSource: true, description: "Linux Foundation-backed, fully open source fork of Vault.", url: "https://openbao.org/docs/install/" },
@@ -133,6 +145,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Service Mesh & Networking",
+    slug: "service-mesh-networking",
     blurb: "Traffic routing, load balancing, and service-to-service security.",
     tools: [
       { name: "Istio", license: "Apache-2.0", openSource: true, description: "Full-featured service mesh for traffic management and mTLS.", url: "https://istio.io/latest/docs/setup/getting-started/" },
@@ -145,6 +158,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Load Testing",
+    slug: "load-testing",
     blurb: "Simulate traffic and measure performance under load.",
     tools: [
       { name: "k6", license: "AGPL-3.0", openSource: true, description: "Developer-centric load testing, scripted in JavaScript.", url: "https://grafana.com/docs/k6/latest/set-up/install-k6/" },
@@ -154,6 +168,7 @@ export const devopsCatalog: DevOpsCategory[] = [
   },
   {
     category: "Self-Hosted Git",
+    slug: "self-hosted-git",
     blurb: "Host your own Git repos and code review.",
     tools: [
       { name: "GitLab CE", license: "MIT", openSource: true, description: "Full DevOps platform: repos, CI/CD, issues, container registry.", url: "https://about.gitlab.com/install/" },

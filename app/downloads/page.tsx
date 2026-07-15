@@ -34,11 +34,9 @@ export const metadata: Metadata = {
   },
 };
 
-function slugify(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
 export default function DownloadsPage() {
+  const totalTools = devopsCatalog.reduce((n, c) => n + c.tools.length, 0);
+
   return (
     <>
       <Navbar />
@@ -66,8 +64,8 @@ export default function DownloadsPage() {
             </h1>
             <p style={{ fontSize: 17, color: "var(--text-secondary)", lineHeight: 1.7, maxWidth: 640, margin: "0 auto" }}>
               IaaS platforms, infrastructure as code, CI/CD, container orchestration, monitoring, and
-              everything in between — {devopsCatalog.reduce((n, c) => n + c.tools.length, 0)} tools across{" "}
-              {devopsCatalog.length} categories, each linked straight to its official source.
+              everything in between — {totalTools} tools across {devopsCatalog.length} categories, each
+              linked straight to its official source.
             </p>
             <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 20 }}>
               Looking for Git specifically?{" "}
@@ -80,103 +78,56 @@ export default function DownloadsPage() {
                 See the OpenStack install guide →
               </Link>
             </p>
+          </div>
+        </section>
 
-            {/* Category jump nav */}
+        {/* Category directory */}
+        <section style={{ padding: "50px 0 80px", background: "var(--bg)" }}>
+          <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
             <div
               style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                justifyContent: "center",
-                marginTop: 32,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: 20,
               }}
             >
-              {devopsCatalog.map((c) => (
-                <a
-                  key={c.category}
-                  href={`#${slugify(c.category)}`}
+              {devopsCatalog.map((cat) => (
+                <Link
+                  key={cat.slug}
+                  href={`/downloads/${cat.slug}`}
                   style={{
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-secondary)",
-                    padding: "6px 16px",
-                    borderRadius: 100,
-                    fontSize: 13,
-                    fontWeight: 600,
+                    display: "block",
+                    background: "var(--bg-alt)",
+                    border: "1px solid var(--border-light)",
+                    borderRadius: "var(--radius-lg)",
+                    padding: "28px",
                   }}
                 >
-                  {c.category}
-                </a>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text)", margin: 0 }}>{cat.category}</h2>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "var(--primary)",
+                        background: "var(--primary-bg)",
+                        padding: "3px 10px",
+                        borderRadius: 100,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {cat.tools.length}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, margin: 0 }}>{cat.blurb}</p>
+                  <span style={{ display: "inline-block", marginTop: 16, fontSize: 13, fontWeight: 600, color: "var(--primary)" }}>
+                    Browse tools →
+                  </span>
+                </Link>
               ))}
             </div>
           </div>
         </section>
-
-        {/* Categories */}
-        {devopsCatalog.map((cat, i) => (
-          <section
-            key={cat.category}
-            id={slugify(cat.category)}
-            style={{ padding: "56px 0", background: i % 2 === 0 ? "var(--bg)" : "var(--bg-alt)" }}
-          >
-            <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
-              <h2 style={{ fontSize: "clamp(22px, 3vw, 28px)", fontWeight: 700, color: "var(--text)", marginBottom: 6 }}>
-                {cat.category}
-              </h2>
-              <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24 }}>{cat.blurb}</p>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                  gap: 16,
-                }}
-              >
-                {cat.tools.map((tool) => (
-                  <a
-                    key={tool.name}
-                    href={tool.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "block",
-                      background: "var(--bg)",
-                      border: "1px solid var(--border-light)",
-                      borderRadius: "var(--radius)",
-                      padding: "20px",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-                      <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", margin: 0 }}>{tool.name}</h3>
-                      <span
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          color: tool.openSource ? "var(--primary)" : "#B45309",
-                          background: tool.openSource ? "var(--primary-bg)" : "rgba(180,83,9,0.1)",
-                          padding: "3px 9px",
-                          borderRadius: 100,
-                          whiteSpace: "nowrap",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.3px",
-                        }}
-                      >
-                        {tool.license}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.55, margin: 0 }}>{tool.description}</p>
-                    {tool.note && (
-                      <p style={{ fontSize: 12, color: "#B45309", lineHeight: 1.5, margin: "8px 0 0" }}>{tool.note}</p>
-                    )}
-                    <span style={{ display: "inline-block", marginTop: 12, fontSize: 13, fontWeight: 600, color: "var(--primary)" }}>
-                      Get it →
-                    </span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </section>
-        ))}
 
         {/* CTA */}
         <section style={{ padding: "80px 0", background: "var(--bg-dark)", textAlign: "center" }}>
