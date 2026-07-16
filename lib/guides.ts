@@ -53,16 +53,63 @@ export const installGuides: InstallGuide[] = [
     updated: "2026",
     featured: true,
     prerequisites: [
-      "A dedicated Linux host (Ubuntu 22.04/24.04 LTS or CentOS Stream recommended)",
-      "At least 8 GB RAM and 2 vCPUs for an all-in-one lab (16 GB+ for anything real)",
-      "A non-root user with sudo privileges and outbound internet access",
+      "A dedicated Linux host (Ubuntu 22.04/24.04 LTS or CentOS Stream 9 recommended) — a 64-bit install, kept minimal so OpenStack has room to breathe",
+      "For a real proof-of-concept: a controller node (roughly 1 CPU / 4 GB RAM / 5 GB disk) plus at least one compute node (roughly 1 CPU / 2 GB RAM / 10 GB disk); an all-in-one lab wants 8 GB RAM / 2 vCPUs minimum, 16 GB+ if you intend to keep it around",
+      "Two NICs per node if you're following the standard reference layout: one for a private management network, one for the public/provider network",
+      "A non-root user with sudo privileges, outbound internet access, and automatic OS updates disabled (they can quietly break a running cloud)",
     ],
     sections: [
       {
         heading: "What is OpenStack?",
         paragraphs: [
-          "OpenStack is the de-facto open source Infrastructure-as-a-Service platform. It exposes compute (Nova), networking (Neutron), block/object storage (Cinder/Swift), identity (Keystone), and an image service (Glance) through a unified API and dashboard (Horizon).",
-          "For a first install, use DevStack on a throwaway VM. For production, Kolla-Ansible deploys every service as a container and is the most widely used method.",
+          "OpenStack is an open source Infrastructure-as-a-Service platform built from a set of independent, cooperating services rather than one monolithic program. Compute (Nova), Networking (Neutron), Identity (Keystone), the Image service (Glance), and Block/Object Storage (Cinder/Swift) each expose their own REST API and can be installed piecemeal — you don't have to run every service to have a working cloud.",
+          "Every service authenticates through Identity and talks to the others over those public APIs (an AMQP message broker, RabbitMQ by default, handles the internal chatter, and each service keeps its state in a shared SQL database). End users reach the cloud through the Horizon web dashboard, the openstack CLI, or by hitting the REST APIs directly.",
+          "For a first install, DevStack builds a throwaway, single-node cloud from source in minutes. For anything you plan to keep running, Kolla-Ansible — which packages every service as a container and drives the rollout with Ansible — is the most widely used deployment method today.",
+        ],
+      },
+      {
+        heading: "Reference architecture: what a cloud is actually made of",
+        paragraphs: [
+          "A minimal OpenStack layout has two kinds of node. The controller runs Identity, Image, Placement, the management/API pieces of Compute and Networking, plus the supporting cast — SQL database, message queue, and NTP. One or more compute nodes run the actual hypervisor (KVM by default) and a Networking agent that wires instances into virtual networks and enforces their security groups.",
+          "Two optional node types round things out: a Block Storage node holding the disks that Cinder hands to instances as volumes, and (in pairs, minimum) Object Storage nodes holding the disks Swift uses for account/container/object data. Both are commonly folded into the controller for a lab and split out for anything real.",
+          "The reference topology keeps two network segments apart on purpose: a private management network (every node's admin traffic, DB/queue access, package installs) and a routable provider network (what instances actually get exposed on). DevStack and Kolla-Ansible automate most of this wiring, but it's worth understanding before you hand it to a tool.",
+        ],
+      },
+      {
+        heading: "Pick a networking model before you install",
+        paragraphs: [
+          "Neutron gives you a choice between two virtual networking approaches, and it's much easier to decide before you deploy than to switch afterward.",
+        ],
+        bullets: [
+          "Provider networks — the simpler option. Neutron just bridges virtual networks straight onto your physical network with VLAN segmentation and leans on your existing routers for layer-3. Fast to stand up, but there's no tenant self-service networking and no load-balancer/firewall-as-a-service on top of it.",
+          "Self-service networks — layers tenant-owned private networks over the provider network using an overlay (VXLAN) plus NAT-based routing. Users can spin up their own isolated networks without touching the underlying infrastructure, and it's the prerequisite for LBaaS/FWaaS-style add-ons later.",
+        ],
+      },
+      {
+        heading: "Environment prerequisites (manual/from-source installs)",
+        paragraphs: [
+          "DevStack and Kolla-Ansible handle all of this for you automatically, but if you're ever installing OpenStack services by hand — or just want to know what's happening under the hood — every node needs a few supporting pieces in place first: clocks kept in sync with chrony/NTP, the distro's OpenStack package repository enabled, and (on the controller) a shared SQL database, a RabbitMQ message queue, Memcached for Identity token caching, and etcd for distributed locking.",
+        ],
+        code: [
+          {
+            label: "keep clocks in sync (NTP via chrony)",
+            code: `sudo apt install -y chrony        # Debian/Ubuntu
+sudo dnf install -y chrony        # RHEL / CentOS Stream
+sudo systemctl enable --now chronyd 2>/dev/null || sudo systemctl enable --now chrony`,
+          },
+          {
+            label: "enable the OpenStack package repo",
+            code: `# RHEL / CentOS Stream 9 — via the RDO project
+sudo dnf install -y centos-release-openstack-caracal
+
+# Ubuntu 22.04 / 24.04 LTS — via the Ubuntu Cloud Archive
+sudo add-apt-repository -y cloud-archive:caracal`,
+          },
+          {
+            label: "create the RabbitMQ account services will use",
+            code: `sudo rabbitmqctl add_user openstack RABBIT_PASS
+sudo rabbitmqctl set_permissions openstack ".*" ".*" ".*"`,
+          },
         ],
       },
       {
@@ -137,9 +184,51 @@ openstack server list`,
           "The Horizon dashboard is reachable at the host IP once services report as up.",
         ],
       },
+      {
+        heading: "Launch a test instance",
+        paragraphs: [
+          "Once services are up, the fastest way to prove the cloud actually works is to stand up a provider network, a cheap flavor, an SSH keypair, and a security group rule or two, then boot something on it. The CirrOS test image (tiny, pre-baked into DevStack) is perfect for this.",
+        ],
+        code: [
+          {
+            label: "create a provider network + subnet (as admin)",
+            code: `openstack network create --share --external \\
+  --provider-physical-network provider \\
+  --provider-network-type flat provider
+
+openstack subnet create --network provider \\
+  --allocation-pool start=203.0.113.101,end=203.0.113.250 \\
+  --dns-nameserver 8.8.4.4 --gateway 203.0.113.1 \\
+  --subnet-range 203.0.113.0/24 provider`,
+          },
+          {
+            label: "a lightweight flavor + SSH keypair (as a regular user)",
+            code: `openstack flavor create --id 0 --vcpus 1 --ram 64 --disk 1 m1.nano
+
+ssh-keygen -q -N ""
+openstack keypair create --public-key ~/.ssh/id_rsa.pub mykey`,
+          },
+          {
+            label: "allow ping + SSH, then boot",
+            code: `openstack security group rule create --proto icmp default
+openstack security group rule create --proto tcp --dst-port 22 default
+
+openstack server create --flavor m1.nano --image cirros \\
+  --nic net-id=PROVIDER_NET_ID --security-group default \\
+  --key-name mykey provider-instance`,
+          },
+        ],
+        note: "Swap PROVIDER_NET_ID for the ID from `openstack network list`. Once the server shows ACTIVE, `openstack console url show provider-instance` gets you a browser VNC session, or SSH straight to its floating/provider IP.",
+      },
+      {
+        heading: "Firewall considerations",
+        paragraphs: [
+          "If a restrictive firewall sits in front of your nodes, each service needs its own port opened. The ones you'll hit immediately: Identity on 5000, Image on 9292, Compute's API on 8774 (plus the noVNC console proxy on 6080), Networking on 9696, Block Storage on 8776, and the Horizon dashboard on 80/443. RabbitMQ (5672) and your SQL database (3306 for MySQL/MariaDB) only need to be reachable between nodes, never from outside.",
+        ],
+      },
     ],
     docs: { label: "OpenStack Documentation", url: "https://docs.openstack.org/" },
-    kb: { label: "OpenStack Community & Mailing Lists", url: "https://www.openstack.org/community/" },
+    kb: { label: "OpenStack Wiki & Community Support", url: "https://wiki.openstack.org/wiki/Main_Page" },
     related: ["proxmox-ve", "cloudstack", "kubernetes"],
   },
   {
@@ -355,16 +444,27 @@ sudo foreman-installer`,
     toolSlug: "opentofu",
     headline: "How to Install & Set Up OpenTofu",
     summary:
-      "Install OpenTofu — the community-driven, fully open source fork of Terraform — and apply your first configuration.",
+      "Install OpenTofu — the Linux Foundation-backed, fully open source fork of Terraform — migrate an existing project over, and use the state-encryption feature Terraform doesn't have.",
     updated: "2026",
     featured: true,
     prerequisites: [
       "A Linux, macOS, or Windows machine",
-      "Credentials for the cloud/provider you plan to manage",
+      "For the walkthrough below: nothing extra, the local provider needs no credentials",
+      "For real infrastructure: credentials for whichever cloud/provider you plan to manage",
     ],
     sections: [
       {
-        heading: "Install with the official script (Linux)",
+        heading: "Why a fork exists, and what actually changed",
+        paragraphs: [
+          "OpenTofu split off from Terraform in 2023 after HashiCorp relicensed Terraform under the BUSL, a source-available license that isn't OSI-approved open source. A group of contributors and vendors took the last MPL-licensed Terraform codebase, moved governance under the Linux Foundation, and kept building — so OpenTofu today reads the same HCL, uses the same provider plugin protocol, and understands the same state file format as Terraform.",
+          "In practice that means the entire workflow you'd learn for Terraform — init/plan/apply/destroy, remote backends, modules — applies unchanged; the only routine difference is typing tofu instead of terraform. OpenTofu has also started shipping features Terraform doesn't have, most notably native state encryption (see below).",
+        ],
+      },
+      {
+        heading: "Install with the official script (any Linux distro)",
+        paragraphs: [
+          "This one script is the officially recommended route on Linux precisely because it works the same on RHEL, Fedora, Debian, Ubuntu, or anything else — it detects your distro and package manager rather than you needing a distro-specific repo.",
+        ],
         code: [
           {
             code: `curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
@@ -379,7 +479,23 @@ rm -f install-opentofu.sh`,
         code: [
           { label: "macOS (Homebrew)", code: `brew install opentofu` },
           { label: "Windows (Chocolatey)", code: `choco install opentofu` },
+          { label: "Linux (Snap)", code: `sudo snap install opentofu --classic` },
         ],
+      },
+      {
+        heading: "Build from source",
+        paragraphs: [
+          "OpenTofu is a genuinely open source Go project, so compiling your own binary — for a platform without prebuilt binaries, or to run an unreleased fix — is a first-class, documented path, not a hack.",
+        ],
+        code: [
+          {
+            code: `git clone --depth=1 https://github.com/opentofu/opentofu.git
+cd opentofu
+go build -o tofu ./cmd/tofu
+sudo mv tofu /usr/local/bin/`,
+          },
+        ],
+        note: "Requires a working Go toolchain (go.dev/dl). Building from a shallow clone of main gets you the latest unreleased code, not a stable release.",
       },
       {
         heading: "Verify the installation",
@@ -396,6 +512,44 @@ tofu apply`,
           },
         ],
       },
+      {
+        heading: "Moving an existing Terraform project over",
+        paragraphs: [
+          "Because the state format is compatible, switching a project you already have is mostly a matter of swapping the binary you invoke — there's no conversion step and no re-import of resources.",
+        ],
+        code: [
+          {
+            code: `cd my-terraform-project
+tofu init          # re-initializes using the existing .terraform.lock.hcl and state
+tofu plan          # should show no changes if nothing actually drifted`,
+          },
+        ],
+        note: "If tofu plan reports unexpected changes right after switching, it's almost always a provider version pinned differently in required_providers — not an incompatibility between the two tools.",
+      },
+      {
+        heading: "State encryption (an OpenTofu-only feature)",
+        paragraphs: [
+          "State files routinely contain secrets in plain text — database passwords, generated private keys. OpenTofu 1.7+ can encrypt state at rest and in transit to a remote backend using a key you control, without needing the backend itself to support encryption.",
+        ],
+        code: [
+          {
+            label: "encryption.tf",
+            code: `terraform {
+  encryption {
+    key_provider "pbkdf2" "mykey" {
+      passphrase = var.state_encryption_passphrase
+    }
+    method "aes_gcm" "example" {
+      keys = key_provider.pbkdf2.mykey
+    }
+    state {
+      method = method.aes_gcm.example
+    }
+  }
+}`,
+          },
+        ],
+      },
     ],
     docs: { label: "OpenTofu Documentation", url: "https://opentofu.org/docs/" },
     kb: { label: "OpenTofu GitHub Discussions", url: "https://github.com/opentofu/opentofu/discussions" },
@@ -408,13 +562,31 @@ tofu apply`,
     toolSlug: "terraform",
     headline: "How to Install & Set Up Terraform",
     summary:
-      "Install HashiCorp Terraform from the official APT/Homebrew repositories and provision your first resources.",
+      "Install HashiCorp Terraform from the official APT/Homebrew repositories, understand the core workflow and state model, and provision your first resources.",
     updated: "2026",
+    featured: true,
     prerequisites: [
-      "Linux, macOS, or Windows",
-      "A cloud provider account (AWS, Azure, GCP, etc.) with credentials configured",
+      "Linux, macOS, or Windows — Terraform ships as a single static binary, no runtime to install alongside it",
+      "For the walkthrough below: nothing extra. It uses the local provider, so no cloud account or credentials are required to follow along",
+      "For real infrastructure afterward: credentials for whichever platform you plan to manage — AWS, Azure, GCP, and dozens of others each have their own Terraform provider",
     ],
     sections: [
+      {
+        heading: "What Terraform actually does",
+        paragraphs: [
+          "Terraform is a declarative infrastructure-as-code tool: instead of scripting the steps to create a server, you describe the end state you want in HCL (HashiCorp Configuration Language), and Terraform figures out what needs to change to get there. Each platform — AWS, Cloudflare, Kubernetes, even a local filesystem — is represented by a provider, a plugin that translates your HCL resource blocks into real API calls.",
+          "The piece that makes this work is the state file. Every time you apply a configuration, Terraform records what it believes exists — resource IDs, attributes, dependency graph — into terraform.tfstate. Every subsequent plan diffs your configuration against that state (not against the real world directly) to figure out what to create, change, or destroy.",
+        ],
+      },
+      {
+        heading: "The core workflow: init, plan, apply, destroy",
+        bullets: [
+          "terraform init — downloads the providers your configuration references and sets up the local .terraform directory. Run it once per project, and again whenever you add a provider or backend.",
+          "terraform plan — computes a dry-run diff between your configuration and the current state, without touching anything. Always read the plan output before applying it.",
+          "terraform apply — re-runs the plan and, after you confirm, actually creates/updates/destroys resources through each provider's API, then updates the state file to match.",
+          "terraform destroy — the reverse: tears down every resource Terraform is tracking in the current state. Use it freely on throwaway environments, very carefully on anything else.",
+        ],
+      },
       {
         heading: "Install on Ubuntu/Debian (HashiCorp APT repo)",
         code: [
@@ -426,6 +598,17 @@ sudo apt update && sudo apt install terraform`,
         ],
       },
       {
+        heading: "Install on RHEL, CentOS Stream, Fedora, or Amazon Linux (HashiCorp YUM repo)",
+        code: [
+          {
+            code: `sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+sudo yum -y install terraform`,
+          },
+        ],
+        note: "dnf works identically to yum here (dnf install terraform) on Fedora and modern RHEL/CentOS Stream releases.",
+      },
+      {
         heading: "Install with a package manager",
         code: [
           { label: "macOS (Homebrew)", code: `brew tap hashicorp/tap
@@ -434,19 +617,96 @@ brew install hashicorp/tap/terraform` },
         ],
       },
       {
+        heading: "Any Linux distro — the generic binary zip",
+        paragraphs: [
+          "No repo, no package manager, works on anything: HashiCorp publishes every Terraform release as a plain zip of a single static binary.",
+        ],
+        code: [
+          {
+            code: `curl -LO https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip
+unzip terraform_1.9.8_linux_amd64.zip
+sudo mv terraform /usr/local/bin/`,
+          },
+        ],
+      },
+      {
         heading: "Verify the installation",
         code: [{ code: `terraform -version` }],
       },
       {
-        heading: "Your first configuration",
+        heading: "Your first configuration — no cloud account needed",
+        paragraphs: [
+          "The hashicorp/local provider manages files on your own disk, which makes it the cleanest way to run the full init → plan → apply → destroy loop for the first time without wiring up AWS or any other account.",
+        ],
         code: [
           {
+            label: "main.tf",
+            code: `terraform {
+  required_providers {
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
+  }
+}
+
+resource "local_file" "hello" {
+  filename = "\${path.module}/hello.txt"
+  content  = "Managed by Terraform since \${timestamp()}"
+}`,
+          },
+          {
+            label: "run the workflow",
             code: `terraform init
 terraform plan
-terraform apply`,
+terraform apply -auto-approve
+cat hello.txt
+terraform destroy -auto-approve`,
           },
         ],
-        note: "Terraform is licensed under the BUSL as of v1.6. If you need a fully open source, OSI-approved alternative, see the OpenTofu guide.",
+        note: "terraform apply -auto-approve skips the interactive yes/no confirmation — handy for a first test or CI, but drop the flag once you're applying anything you actually care about.",
+      },
+      {
+        heading: "State: where it lives and why it needs a backend",
+        paragraphs: [
+          "By default Terraform writes state to a local terraform.tfstate file, which works fine solo but breaks down the moment a second person or a CI pipeline needs to run the same configuration — nothing prevents two concurrent applies from stepping on each other. A remote backend (S3 with a DynamoDB lock table, Terraform Cloud, Azure Blob Storage, and others) moves state off your laptop and adds locking so only one apply can run at a time.",
+          "State files can contain sensitive values in plain text (database passwords, private keys generated by a resource), so they belong in a backend with encryption and tightly scoped access — never committed to Git.",
+        ],
+        code: [
+          {
+            label: "example: S3 remote backend",
+            code: `terraform {
+  backend "s3" {
+    bucket         = "my-terraform-state"
+    key            = "prod/network.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-locks"
+    encrypt        = true
+  }
+}`,
+          },
+          {
+            label: "inspect state without editing it by hand",
+            code: `terraform state list
+terraform show`,
+          },
+        ],
+      },
+      {
+        heading: "Everyday commands",
+        bullets: [
+          "terraform fmt — rewrites .tf files to the canonical HCL style; run it before every commit.",
+          "terraform validate — checks the configuration is internally consistent (types, required arguments) without contacting any provider.",
+          "terraform workspace new staging / terraform workspace select staging — keeps separate state per environment from a single configuration.",
+          "terraform output — prints the values from any output blocks after an apply, useful for wiring one configuration's results into another.",
+        ],
+      },
+      {
+        heading: "Reusing configuration with modules",
+        paragraphs: [
+          "A module is just a directory of .tf files that takes input variables and exposes output values — the same mental model as a function. The root configuration you run terraform apply from is itself a module; anything you call with a module block is a child module. Pulling in a well-maintained module from the public Terraform Registry is usually faster and safer than hand-rolling the same VPC or Kubernetes cluster setup from scratch.",
+        ],
+        note: "Terraform is licensed under the BUSL as of v1.6, so it's no longer OSI-approved open source. If that matters for your project, see the OpenTofu guide — a drop-in, fully open source fork with the same CLI and HCL syntax.",
       },
     ],
     docs: { label: "Terraform Documentation", url: "https://developer.hashicorp.com/terraform/docs" },
@@ -550,14 +810,21 @@ sudo mv crossplane /usr/local/bin`,
     toolSlug: "ansible",
     headline: "How to Install & Set Up Ansible",
     summary:
-      "Install Ansible — agentless automation for provisioning, configuration management, and app deployment — and run your first playbook.",
+      "Install Ansible — agentless automation for provisioning, configuration management, and app deployment — then build an inventory, write an idempotent playbook, and organize it into roles.",
     updated: "2026",
     featured: true,
     prerequisites: [
-      "A Linux/macOS control node with Python 3.9+",
-      "SSH access to the machines you want to manage (no agent required on them)",
+      "A Linux/macOS control node with Python 3.9+ — this is the only machine that needs Ansible installed",
+      "SSH access (key-based, ideally) to the machines you want to manage, plus a Python interpreter on each of them — no agent or daemon runs on the managed side",
     ],
     sections: [
+      {
+        heading: "Why 'agentless' actually matters",
+        paragraphs: [
+          "Ansible doesn't run anything persistent on the machines it manages. Every run, the control node connects over plain SSH, copies over a small Python script for whatever module the task calls, executes it, and cleans up — there's no daemon to keep patched or a port to expose beyond SSH itself.",
+          "The other property worth understanding up front is idempotency: a well-written task describes a desired end state ('this package is installed', 'this file has this content'), not a command to run. Re-running the exact same playbook against a host that's already correct should report changed=0 across the board — that's what lets you safely run the same playbook nightly instead of only once.",
+        ],
+      },
       {
         heading: "Install with pip (recommended)",
         code: [{ code: `python3 -m pip install --user ansible` }],
@@ -569,27 +836,145 @@ sudo mv crossplane /usr/local/bin`,
 sudo apt install -y software-properties-common
 sudo add-apt-repository --yes --update ppa:ansible/ansible
 sudo apt install -y ansible` },
+          { label: "RHEL / CentOS Stream (EPEL)", code: `sudo dnf install -y epel-release
+sudo dnf install -y ansible-core` },
+          { label: "Fedora", code: `sudo dnf install -y ansible-core` },
           { label: "macOS (Homebrew)", code: `brew install ansible` },
         ],
+        note: "ansible-core is the engine; the full ansible metapackage (pip install ansible) additionally pulls in the large community collection of modules — install that instead of ansible-core if you need modules beyond the built-ins.",
+      },
+      {
+        heading: "Install the bleeding-edge devel branch from source",
+        paragraphs: [
+          "For a feature or bugfix that hasn't shipped in a release yet, pip can install directly from the devel branch on GitHub — genuinely the same thing the release packages above build from, just unreleased.",
+        ],
+        code: [{ code: `python3 -m pip install --user git+https://github.com/ansible/ansible.git@devel` }],
+        note: "devel is a moving target and not meant for production control nodes — use a release install for anything you depend on.",
       },
       {
         heading: "Verify the installation",
         code: [{ code: `ansible --version` }],
       },
       {
-        heading: "Your first ad-hoc command and playbook",
-        paragraphs: ["Create an inventory file listing your hosts, then ping them and run a playbook."],
+        heading: "Build an inventory",
+        paragraphs: [
+          "The inventory is just the list of hosts Ansible can target, grouped however makes sense for you — by role, by environment, whatever. INI is the classic format; YAML reads better once you start attaching per-group variables.",
+        ],
         code: [
           {
             label: "inventory.ini",
             code: `[web]
 192.0.2.10
-192.0.2.11`,
+192.0.2.11
+
+[db]
+192.0.2.20
+
+[web:vars]
+http_port=8080`,
           },
           {
-            label: "test connectivity + run a playbook",
+            label: "the same inventory in YAML",
+            code: `all:
+  children:
+    web:
+      hosts:
+        192.0.2.10: {}
+        192.0.2.11: {}
+      vars:
+        http_port: 8080
+    db:
+      hosts:
+        192.0.2.20: {}`,
+          },
+        ],
+      },
+      {
+        heading: "Ad-hoc commands — Ansible without a playbook",
+        paragraphs: [
+          "For a one-off task, you don't need a whole playbook — the ansible CLI runs a single module against a group directly. Good for checking connectivity, gathering facts, or a quick fix across a fleet.",
+        ],
+        code: [
+          {
             code: `ansible -i inventory.ini web -m ping
+ansible -i inventory.ini web -m apt -a "name=curl state=present" --become
+ansible -i inventory.ini all -m setup -a "filter=ansible_distribution*"`,
+          },
+        ],
+      },
+      {
+        heading: "Write your first playbook",
+        paragraphs: [
+          "A playbook is a YAML file of plays, each targeting a group of hosts and running an ordered list of tasks. Handlers are tasks that only fire when notified — the standard pattern for 'restart the service, but only if its config actually changed'.",
+        ],
+        code: [
+          {
+            label: "site.yml",
+            code: `- name: Configure web servers
+  hosts: web
+  become: true
+  tasks:
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Deploy site config
+      template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+      notify: Reload nginx
+
+    - name: Ensure nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Reload nginx
+      service:
+        name: nginx
+        state: reloaded`,
+          },
+          {
+            label: "dry-run, then apply",
+            code: `ansible-playbook -i inventory.ini site.yml --check --diff
 ansible-playbook -i inventory.ini site.yml`,
+          },
+        ],
+        note: "--check simulates the run and --diff shows what would change, without touching anything — always worth running before the real thing on hosts you care about.",
+      },
+      {
+        heading: "Organize larger projects with roles",
+        paragraphs: [
+          "Once a playbook grows past a handful of tasks, a role gives you a standard directory layout (tasks/, handlers/, templates/, defaults/, vars/) that Ansible auto-loads by convention — and it's reusable across playbooks and shareable via Ansible Galaxy.",
+        ],
+        code: [
+          {
+            label: "scaffold a role and use it",
+            code: `ansible-galaxy init roles/webserver`,
+          },
+          {
+            label: "site.yml, referencing the role instead of inline tasks",
+            code: `- name: Configure web servers
+  hosts: web
+  become: true
+  roles:
+    - webserver`,
+          },
+        ],
+      },
+      {
+        heading: "Keep secrets out of Git with Ansible Vault",
+        paragraphs: [
+          "Passwords and API keys shouldn't sit in plaintext next to your playbooks. Vault encrypts a file (or just a single variable) with a password you supply at run time.",
+        ],
+        code: [
+          {
+            code: `ansible-vault create group_vars/web/vault.yml
+ansible-playbook -i inventory.ini site.yml --ask-vault-pass`,
           },
         ],
       },
@@ -743,14 +1128,22 @@ sudo salt '*' test.ping`,
     toolSlug: "docker-engine",
     headline: "How to Install & Set Up Docker Engine",
     summary:
-      "Install Docker Engine on Linux from the official APT repository, run it without sudo, and launch your first container.",
+      "Install Docker Engine on Linux from the official APT repository, understand images vs. containers, build and run your first Dockerfile, and wire up networking, volumes, and Compose.",
     updated: "2026",
     featured: true,
     prerequisites: [
-      "A 64-bit Ubuntu/Debian host (or another supported Linux distribution)",
-      "sudo privileges; remove any distro-packaged docker.io first to avoid conflicts",
+      "A 64-bit Ubuntu/Debian host (or another supported Linux distribution) — Docker Desktop covers macOS/Windows separately",
+      "sudo privileges; remove any distro-packaged docker.io or podman-docker package first to avoid conflicts",
+      "A few hundred MB of free disk under /var/lib/docker — images and layers live there by default",
     ],
     sections: [
+      {
+        heading: "Images, containers, and the daemon — the mental model",
+        paragraphs: [
+          "An image is a read-only, layered filesystem plus metadata (entrypoint, exposed ports, env defaults) — think of it as a class. A container is a running (or stopped) instance of that image with its own writable layer on top — think of it as an object. Every docker run creates a new container from an existing image without ever modifying the image itself.",
+          "Under the hood, the docker CLI talks to the dockerd daemon over a local socket; dockerd delegates the actual container lifecycle to containerd, which in turn uses runc to do the low-level OS work (namespaces, cgroups) that actually isolates the process. You install all three together — the docker-ce, docker-ce-cli, and containerd.io packages below — because they're one release train.",
+        ],
+      },
       {
         heading: "Add Docker's official APT repository",
         code: [
@@ -772,6 +1165,21 @@ sudo apt-get update`,
             code: `sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`,
           },
         ],
+        note: "docker-buildx-plugin and docker-compose-plugin add the `docker build` (BuildKit) and `docker compose` subcommands — both are expected to already be there on any modern install, so don't skip them.",
+      },
+      {
+        heading: "Install on RHEL, CentOS Stream, or Fedora (official RPM repo)",
+        paragraphs: [
+          "Same package set, same daemon, just swap the repo URL's distro segment (centos, fedora, rhel) to match your host.",
+        ],
+        code: [
+          {
+            code: `sudo dnf -y install dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker`,
+          },
+        ],
       },
       {
         heading: "Run Docker without sudo (optional)",
@@ -790,6 +1198,82 @@ newgrp docker`,
             code: `docker --version
 docker run hello-world`,
           },
+        ],
+      },
+      {
+        heading: "Build and run your own image",
+        paragraphs: [
+          "Pulling someone else's image is only half the picture — the other half is writing a Dockerfile that describes how to build yours. Each instruction adds a cached layer, so ordering matters: put the things that change least often (installing dependencies) before the things that change most often (your source code) to keep rebuilds fast.",
+        ],
+        code: [
+          {
+            label: "Dockerfile",
+            code: `FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY . .
+EXPOSE 3000
+CMD ["node", "server.js"]`,
+          },
+          {
+            label: "build, run, and check it",
+            code: `docker build -t my-app:latest .
+docker run -d --name my-app -p 3000:3000 my-app:latest
+docker ps
+docker logs -f my-app`,
+          },
+        ],
+      },
+      {
+        heading: "Networking basics",
+        bullets: [
+          "bridge (default) — every container gets a private IP on a virtual bridge network; -p HOST:CONTAINER publishes a port to the host so the outside world can reach it.",
+          "host — the container shares the host's network namespace directly (no port mapping needed, but no isolation either); Linux-only.",
+          "none — no networking at all, for fully isolated jobs.",
+          "docker network create mynet plus --network mynet lets multiple containers reach each other by container name — the basis for anything multi-service before you reach for Compose.",
+        ],
+      },
+      {
+        heading: "Persisting data with volumes",
+        paragraphs: [
+          "A container's writable layer disappears the moment you docker rm it, so anything that needs to survive — a database's data directory, uploaded files — belongs in a volume, not the container filesystem.",
+        ],
+        code: [
+          {
+            label: "named volume (Docker manages the storage location)",
+            code: `docker volume create app-data
+docker run -d -v app-data:/var/lib/data my-app:latest`,
+          },
+          {
+            label: "bind mount (you control the host path — handy for local dev)",
+            code: `docker run -d -v "$(pwd)/data:/var/lib/data" my-app:latest`,
+          },
+        ],
+      },
+      {
+        heading: "Running multiple services with Compose",
+        paragraphs: [
+          "Once an app is more than one container — say a web service plus a database — Docker Compose lets you describe the whole stack in one YAML file and bring it up or down as a unit.",
+        ],
+        code: [
+          {
+            label: "compose.yaml",
+            code: `services:
+  web:
+    build: .
+    ports: ["3000:3000"]
+    depends_on: [db]
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: example
+    volumes: ["db-data:/var/lib/postgresql/data"]
+volumes:
+  db-data:`,
+          },
+          { label: "start and stop the stack", code: `docker compose up -d
+docker compose down` },
         ],
       },
     ],
@@ -978,23 +1462,66 @@ buildah commit $container my-image:latest`,
     toolSlug: "kubernetes",
     headline: "How to Install & Set Up Kubernetes",
     summary:
-      "Install the kubectl CLI and bootstrap a Kubernetes cluster with kubeadm — the standard way to run Kubernetes on your own hosts.",
+      "Install the kubectl CLI, understand the control-plane/node split, bootstrap a real cluster with kubeadm, and deploy your first workload.",
     updated: "2026",
     featured: true,
     prerequisites: [
-      "One or more Linux hosts (2 GB+ RAM, 2 vCPUs each) with swap disabled",
-      "A container runtime installed (containerd or CRI-O) on every node",
-      "Networking between nodes and unique hostnames/MAC addresses",
+      "One or more Linux hosts (2 GB+ RAM, 2 vCPUs each) with swap disabled — one becomes the control-plane node, the rest are workers",
+      "A container runtime installed (containerd or CRI-O) on every node — Kubernetes talks to it through the CRI (Container Runtime Interface), it no longer runs containers itself",
+      "Unique hostnames, unique MAC addresses, and full network connectivity between every node",
     ],
     sections: [
       {
-        heading: "Install kubectl",
+        heading: "Control plane vs. nodes — what you're actually building",
+        paragraphs: [
+          "A cluster splits into two roles. The control plane is the brain: the API server (every kubectl command and every internal component talks through it), etcd (the cluster's entire state lives in this key-value store), the scheduler (decides which node a new pod lands on), and the controller manager (a set of reconciliation loops that keep reality matching what you declared).",
+          "Worker nodes are where your workloads actually run. Each one runs a kubelet (the agent that talks to the API server and starts/stops containers via the runtime), kube-proxy (programs the networking rules that make Services work), and the container runtime itself. kubeadm — the tool below — automates wiring all of this together on your own machines; kubectl is just the client you use to talk to the API server afterward.",
+          "If you don't want to run this yourself, k3s, k0s, and MicroK8s package the same control plane into a much lighter single binary — see their dedicated guides — and kind/Minikube spin up a throwaway cluster for local development only.",
+        ],
+      },
+      {
+        heading: "Install kubectl only (quick, distro-agnostic)",
+        paragraphs: [
+          "If you only need a client to talk to a cluster someone else runs (managed, or already bootstrapped), the plain binary is all you need — no repo, no package manager.",
+        ],
         code: [
           {
             code: `curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl`,
           },
         ],
+      },
+      {
+        heading: "Install kubeadm, kubelet & kubectl together (for bootstrapping a real cluster)",
+        paragraphs: [
+          "To actually build a cluster you need kubeadm and kubelet too, not just kubectl — install all three together from Kubernetes' own package repository, on every node that will join the cluster.",
+        ],
+        code: [
+          {
+            label: "Ubuntu/Debian (apt)",
+            code: `sudo apt-get update
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl`,
+          },
+          {
+            label: "RHEL / CentOS Stream / Fedora (dnf)",
+            code: `cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/repodata/repomd.xml.key
+EOF
+sudo dnf install -y kubelet kubeadm kubectl
+sudo systemctl enable --now kubelet`,
+          },
+        ],
+        note: "Swap v1.31 in the URL for whichever minor version you're targeting — the repo is versioned per minor release, and apt-mark hold / a pinned dnf version stops an unattended upgrade from silently jumping your cluster to an incompatible version.",
       },
       {
         heading: "Bootstrap a control plane with kubeadm",
@@ -1006,7 +1533,31 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config`,
           },
         ],
-        note: "After init, install a CNI plugin (e.g. Flannel or Calico) or your nodes will stay NotReady. Join workers with the kubeadm join command printed by init.",
+        note: "kubeadm init prints a `kubeadm join ...` command with a token near the end of its output — copy it before it scrolls away, you'll need it for every worker.",
+      },
+      {
+        heading: "Install a CNI plugin (required)",
+        paragraphs: [
+          "Kubernetes doesn't ship pod networking itself — without a CNI (Container Network Interface) plugin, nodes stay stuck in NotReady and pods can't get an IP at all. Flannel is the simplest option and matches the --pod-network-cidr used above.",
+        ],
+        code: [{ code: `kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml` }],
+      },
+      {
+        heading: "Join worker nodes",
+        paragraphs: [
+          "Run the join command kubeadm init printed earlier, on each worker node, as root:",
+        ],
+        code: [
+          {
+            code: `sudo kubeadm join CONTROL_PLANE_HOST:6443 \\
+  --token TOKEN \\
+  --discovery-token-ca-cert-hash sha256:HASH`,
+          },
+          {
+            label: "lost the token? regenerate it from the control-plane node",
+            code: `kubeadm token create --print-join-command`,
+          },
+        ],
       },
       {
         heading: "Verify the installation",
@@ -1014,6 +1565,40 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config`,
           {
             code: `kubectl get nodes
 kubectl get pods -A`,
+          },
+        ],
+        paragraphs: ["Every node should report Ready and every pod in the kube-system namespace should be Running before you deploy anything of your own."],
+      },
+      {
+        heading: "The object model, in one deployment",
+        paragraphs: [
+          "You almost never manage individual containers directly. A Deployment declares how many replicas of a Pod (one or more containers sharing network/storage) you want running and keeps that count true even as nodes fail; a Service gives that shifting set of pods a single stable IP and DNS name to be reached at.",
+        ],
+        code: [
+          {
+            label: "deploy nginx and expose it",
+            code: `kubectl create deployment nginx --image=nginx:latest --replicas=2
+kubectl expose deployment nginx --port=80 --type=NodePort
+kubectl get deployments,pods,svc`,
+          },
+          {
+            label: "watch it self-heal",
+            code: `kubectl delete pod -l app=nginx --field-selector=status.phase=Running --grace-period=0 | head -1
+kubectl get pods -w`,
+          },
+        ],
+        note: "Real workloads live in YAML manifests applied with `kubectl apply -f` (so the config is versioned in Git), not typed imperatively like the create/expose commands above — those are just the fastest way to prove the cluster works.",
+      },
+      {
+        heading: "Working across clusters with kubectl context",
+        paragraphs: [
+          "Your kubeconfig (~/.kube/config) can hold credentials for several clusters at once, and context is what tells kubectl which one — and which namespace — a command should hit.",
+        ],
+        code: [
+          {
+            code: `kubectl config get-contexts
+kubectl config use-context my-cluster
+kubectl config set-context --current --namespace=my-team`,
           },
         ],
       },
@@ -1245,14 +1830,22 @@ helm install rancher rancher-stable/rancher \\
     toolSlug: "jenkins",
     headline: "How to Install & Set Up Jenkins",
     summary:
-      "Install the Jenkins LTS automation server on Ubuntu (or via Docker) and unlock the setup wizard to run your first pipeline.",
+      "Install the Jenkins LTS automation server on Ubuntu (or via Docker), unlock it, write a real declarative Pipeline, and attach a build agent.",
     updated: "2026",
     featured: true,
     prerequisites: [
-      "A host with 2 GB+ RAM",
+      "A host with 2 GB+ RAM for the controller (agents doing the actual building want more, depending on what they build)",
       "Java 17 or 21 (installed below on Ubuntu)",
     ],
     sections: [
+      {
+        heading: "Controller, agents, and jobs — how Jenkins is put together",
+        paragraphs: [
+          "The Jenkins process you install below is the controller: it serves the web UI, stores configuration and build history, and schedules work — but by default it also runs builds on itself via a 'built-in node', which is fine for a lab and something you'll want to change once real traffic shows up (see the agent section below).",
+          "Almost everything past the core is a plugin — SCM integrations, notification channels, cloud agent provisioners, and the Pipeline engine itself all arrive as plugins, which is why the initial setup wizard spends most of its time installing them.",
+          "A job is a unit of work. Freestyle jobs configure a build through UI form fields and were the original Jenkins model; Pipeline jobs read a Jenkinsfile — a script, checked into your repo alongside the code it builds — which is the standard approach today because the build definition is versioned, reviewable, and portable between Jenkins instances.",
+        ],
+      },
       {
         heading: "Install Jenkins on Ubuntu (LTS repo)",
         code: [
@@ -1268,6 +1861,17 @@ sudo systemctl enable --now jenkins`,
         ],
       },
       {
+        heading: "Install Jenkins on RHEL, CentOS Stream, or Fedora (LTS repo)",
+        code: [
+          {
+            code: `sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+sudo dnf install -y fontconfig java-17-openjdk jenkins
+sudo systemctl enable --now jenkins`,
+          },
+        ],
+      },
+      {
         heading: "Alternative — run Jenkins in Docker",
         code: [
           {
@@ -1277,11 +1881,80 @@ sudo systemctl enable --now jenkins`,
   jenkins/jenkins:lts`,
           },
         ],
+        note: "Port 50000 is only needed if you plan to attach JNLP-based build agents (see below) — safe to drop the mapping if the controller will always run its own builds.",
       },
       {
         heading: "Unlock and verify",
-        paragraphs: ["Browse to http://your-server:8080 and paste the initial admin password:"],
+        paragraphs: [
+          "Browse to http://your-server:8080 and paste the initial admin password to get past the setup wizard's unlock screen. Take the wizard's 'Install suggested plugins' option unless you have a specific reason not to — it covers Git, Pipeline, and credentials support, which you'll want immediately.",
+        ],
         code: [{ code: `sudo cat /var/lib/jenkins/secrets/initialAdminPassword` }],
+      },
+      {
+        heading: "Write your first Pipeline",
+        paragraphs: [
+          "Create a Jenkinsfile at the root of a repository, then point a new Pipeline job at that repo — Jenkins reads the file straight from source control on every run.",
+        ],
+        code: [
+          {
+            label: "Jenkinsfile",
+            code: `pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            steps {
+                sh 'npm ci'
+                sh 'npm run build'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'npm test'
+            }
+        }
+        stage('Deploy') {
+            when { branch 'main' }
+            steps {
+                sh './deploy.sh'
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo 'Build failed — check the console log.'
+        }
+    }
+}`,
+          },
+        ],
+        note: "In the Jenkins UI: New Item → Pipeline → under Pipeline, set 'Pipeline script from SCM', point it at your repo, and set the script path to Jenkinsfile.",
+      },
+      {
+        heading: "Attach a build agent",
+        paragraphs: [
+          "Once builds need isolation, more capacity, or a specific toolchain the controller doesn't have, add a separate agent node rather than building on the controller. Manage Jenkins → Nodes → New Node walks you through it and, for an inbound (JNLP) agent, hands you a ready-to-run command like the one below to execute on the agent machine.",
+        ],
+        code: [
+          {
+            code: `java -jar agent.jar -url http://your-server:8080/ \\
+  -secret AGENT_SECRET -name my-agent -workDir "/home/jenkins/agent"`,
+          },
+        ],
+      },
+      {
+        heading: "Keep secrets out of the Jenkinsfile",
+        paragraphs: [
+          "Never hardcode credentials in a pipeline script that's checked into a repo. Add them once under Manage Jenkins → Credentials, then reference the credential ID from the Jenkinsfile — Jenkins injects the real value at run time and masks it in the console log.",
+        ],
+        code: [
+          {
+            code: `withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+    sh 'docker login -u "$USER" -p "$PASS"'
+}`,
+          },
+        ],
       },
     ],
     docs: { label: "Jenkins Documentation", url: "https://www.jenkins.io/doc/" },
@@ -1832,11 +2505,18 @@ docker pull localhost:5000/alpine`,
     toolSlug: "prometheus",
     headline: "How to Install & Set Up Prometheus",
     summary:
-      "Install Prometheus — the CNCF standard for pull-based metrics and alerting — from the official binary and scrape your first target.",
+      "Install Prometheus — the CNCF standard for pull-based metrics and alerting — scrape a real target with node_exporter, run your first PromQL queries, and wire up alerting rules.",
     updated: "2026",
     featured: true,
-    prerequisites: ["A Linux host", "Targets that expose metrics on a /metrics endpoint"],
+    prerequisites: ["A Linux host", "Targets that expose metrics on a /metrics endpoint — node_exporter (installed below) is the easiest first one"],
     sections: [
+      {
+        heading: "Why pull instead of push",
+        paragraphs: [
+          "Prometheus's defining design choice is that it scrapes — it periodically hits each target's HTTP /metrics endpoint and pulls the current values, rather than waiting for targets to push data in. That means any process you want monitored just needs to expose a metrics endpoint (either natively, or via a small exporter sitting in front of it); Prometheus's server handles scheduling, retries, and storage centrally.",
+          "Everything Prometheus collects lands in its own on-disk time series database, addressed by metric name plus a set of key/value labels — it's the label set, not a separate table per metric, that lets you slice cpu_usage by host, region, or environment in a single query.",
+        ],
+      },
       {
         heading: "Download and extract Prometheus",
         code: [
@@ -1848,8 +2528,17 @@ cd prometheus-2.53.0.linux-amd64`,
         ],
       },
       {
-        heading: "Configure a scrape target",
+        heading: "Scrape a real target with node_exporter",
+        paragraphs: [
+          "Scraping Prometheus's own /metrics is a fine smoke test, but a genuinely useful first target is node_exporter, which exposes host-level metrics (CPU, memory, disk, network) for Prometheus to pull.",
+        ],
         code: [
+          {
+            label: "install and run node_exporter",
+            code: `curl -LO https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz
+tar xvfz node_exporter-1.8.2.linux-amd64.tar.gz
+./node_exporter-1.8.2.linux-amd64/node_exporter &`,
+          },
           {
             label: "prometheus.yml",
             code: `global:
@@ -1857,14 +2546,93 @@ cd prometheus-2.53.0.linux-amd64`,
 scrape_configs:
   - job_name: "prometheus"
     static_configs:
-      - targets: ["localhost:9090"]`,
+      - targets: ["localhost:9090"]
+  - job_name: "node"
+    static_configs:
+      - targets: ["localhost:9100"]`,
           },
         ],
       },
       {
         heading: "Run and verify",
         code: [{ code: `./prometheus --config.file=prometheus.yml` }],
-        paragraphs: ["Open http://localhost:9090 and run a query such as 'up' in the expression browser."],
+        paragraphs: ["Open http://localhost:9090 and run a query such as 'up' in the expression browser — both jobs should show 1."],
+      },
+      {
+        heading: "Run it as a systemd service (any distro)",
+        paragraphs: [
+          "Ctrl-C'ing a foreground process isn't how this survives a reboot. Move the binary and config into place under a dedicated user, then let systemd own the process — this works identically whether the host is RHEL-family or Debian-family, since it's systemd, not a distro package.",
+        ],
+        code: [
+          {
+            label: "install as a service",
+            code: `sudo useradd --no-create-home --shell /usr/sbin/nologin prometheus
+sudo mkdir -p /etc/prometheus /var/lib/prometheus
+sudo mv prometheus.yml /etc/prometheus/
+sudo mv prometheus promtool /usr/local/bin/
+sudo chown -R prometheus:prometheus /var/lib/prometheus`,
+          },
+          {
+            label: "/etc/systemd/system/prometheus.service",
+            code: `[Unit]
+Description=Prometheus
+After=network.target
+
+[Service]
+User=prometheus
+ExecStart=/usr/local/bin/prometheus \\
+  --config.file=/etc/prometheus/prometheus.yml \\
+  --storage.tsdb.path=/var/lib/prometheus
+
+[Install]
+WantedBy=multi-user.target`,
+          },
+          { label: "enable and start", code: `sudo systemctl daemon-reload
+sudo systemctl enable --now prometheus` },
+        ],
+      },
+      {
+        heading: "Build from source",
+        paragraphs: [
+          "Prometheus is a standard Go project with a Makefile, so building your own binary is the same handful of commands the release tarballs are themselves built from.",
+        ],
+        code: [
+          {
+            code: `git clone https://github.com/prometheus/prometheus.git
+cd prometheus
+make build`,
+          },
+        ],
+      },
+      {
+        heading: "A few real PromQL queries",
+        bullets: [
+          "up — 1 for every target Prometheus successfully scraped on its last attempt, 0 for anything down. The first query to run when something's wrong.",
+          "rate(node_cpu_seconds_total{mode=\"idle\"}[5m]) — per-second average of a counter over the last 5 minutes; almost every 'how busy is X' question starts with rate() on a counter, never the raw counter value itself.",
+          "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes — a gauge ratio, no rate() needed since gauges are already instantaneous values.",
+        ],
+      },
+      {
+        heading: "Alerting rules",
+        paragraphs: [
+          "Prometheus evaluates alerting rules itself and forwards anything that fires to Alertmanager, a separate binary responsible for deduplication, grouping, and routing to email/Slack/PagerDuty — Prometheus never sends notifications directly.",
+        ],
+        code: [
+          {
+            label: "alerts.yml",
+            code: `groups:
+  - name: node
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} has been down for 5+ minutes"`,
+          },
+        ],
+        note: "Reference the rules file with `rule_files: [\"alerts.yml\"]` in prometheus.yml, then point Alertmanager's address at `alerting.alertmanagers` in the same file.",
       },
     ],
     docs: { label: "Prometheus Documentation", url: "https://prometheus.io/docs/" },
@@ -1878,11 +2646,17 @@ scrape_configs:
     toolSlug: "grafana",
     headline: "How to Install & Set Up Grafana",
     summary:
-      "Install Grafana OSS from the official APT repository (or Docker) and connect your first data source to build dashboards.",
+      "Install Grafana OSS from the official APT repository (or Docker), connect a Prometheus data source through the UI or as code, and build your first dashboard.",
     updated: "2026",
     featured: true,
-    prerequisites: ["A Linux host", "A data source such as Prometheus, Loki, or a SQL database"],
+    prerequisites: ["A Linux host", "A data source such as Prometheus, Loki, or a SQL database — the walkthrough below assumes Prometheus running on the same host"],
     sections: [
+      {
+        heading: "How Grafana fits together",
+        paragraphs: [
+          "Grafana itself doesn't store your metrics or logs — it's a query and visualization layer that sits in front of data sources (Prometheus, Loki, InfluxDB, plain SQL, dozens of others) and translates each one's native query language into panels on a dashboard. A dashboard is just a JSON document describing a grid of panels, each pointed at a data source and a query; that JSON is exportable, importable, and diffable, which is what makes dashboards-as-code practical.",
+        ],
+      },
       {
         heading: "Install on Ubuntu/Debian (APT repo)",
         code: [
@@ -1898,12 +2672,73 @@ sudo systemctl enable --now grafana-server`,
         ],
       },
       {
+        heading: "Install on RHEL, CentOS Stream, or Fedora (official RPM repo)",
+        code: [
+          {
+            code: `cat <<EOF | sudo tee /etc/yum.repos.d/grafana.repo
+[grafana]
+name=grafana
+baseurl=https://rpm.grafana.com
+repo_gpgcheck=1
+enabled=1
+gpgcheck=1
+gpgkey=https://rpm.grafana.com/gpg.key
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+EOF
+sudo dnf install -y grafana
+sudo systemctl enable --now grafana-server`,
+          },
+        ],
+      },
+      {
         heading: "Alternative — run Grafana in Docker",
         code: [{ code: `docker run -d -p 3000:3000 --name grafana grafana/grafana-oss` }],
       },
       {
         heading: "Verify and log in",
         paragraphs: ["Open http://your-host:3000 and sign in with admin / admin — you'll be prompted to set a new password immediately."],
+      },
+      {
+        heading: "Connect a data source through the UI",
+        paragraphs: [
+          "Connections → Data sources → Add data source → Prometheus, then point the URL at wherever Prometheus is listening (http://localhost:9090 if it's on the same box) and hit Save & test.",
+        ],
+      },
+      {
+        heading: "Provision data sources and dashboards as code",
+        paragraphs: [
+          "Clicking through the UI every time you stand up a new Grafana instance doesn't scale. Drop YAML files into Grafana's provisioning directories and it picks them up on startup — the same data sources and dashboards, defined once, checked into Git.",
+        ],
+        code: [
+          {
+            label: "/etc/grafana/provisioning/datasources/prometheus.yaml",
+            code: `apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://localhost:9090
+    isDefault: true`,
+          },
+          {
+            label: "/etc/grafana/provisioning/dashboards/default.yaml",
+            code: `apiVersion: 1
+providers:
+  - name: default
+    folder: ""
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards`,
+          },
+        ],
+        note: "Drop exported dashboard JSON files into /var/lib/grafana/dashboards and restart grafana-server — they'll show up under the folder you configured, no manual import needed.",
+      },
+      {
+        heading: "Build your first dashboard",
+        paragraphs: [
+          "Dashboards → New → New Dashboard → Add visualization, pick the Prometheus data source, and try a query like rate(node_cpu_seconds_total{mode=\"idle\"}[5m]) — the same PromQL you'd run in Prometheus's own expression browser, now rendered as a time series panel you can save and share.",
+        ],
       },
     ],
     docs: { label: "Grafana Documentation", url: "https://grafana.com/docs/grafana/latest/" },
@@ -2266,19 +3101,42 @@ volumes: { mongodb_data: {}, os_data: {} }`,
     toolSlug: "openbao",
     headline: "How to Install & Set Up OpenBao",
     summary:
-      "Install OpenBao — the Linux Foundation's fully open source fork of Vault — and start a dev server to store your first secret.",
+      "Install OpenBao — the Linux Foundation's fully open source fork of Vault — store your first secret, then look at how a real (non-dev) server initializes, unseals, and authorizes access.",
     updated: "2026",
     featured: true,
     prerequisites: ["A Linux host"],
     sections: [
       {
-        heading: "Install the OpenBao binary",
+        heading: "The model: encryption as a service",
+        paragraphs: [
+          "OpenBao isn't just a place to dump passwords — it's a server that mediates every read and write through auth methods (how a caller proves who it is: tokens, LDAP, Kubernetes service accounts) and policies (what that identity is allowed to do, expressed as HCL rules over paths). Secrets themselves live behind secrets engines; the KV engine used below is the simple key-value case, but database, PKI, and cloud-credential engines can hand out short-lived, dynamically generated credentials instead of static ones.",
+        ],
+      },
+      {
+        heading: "Install the OpenBao binary (any Linux distro)",
         code: [
           {
             code: `curl -LO https://github.com/openbao/openbao/releases/download/v2.1.0/bao_2.1.0_linux_amd64.tar.gz
 tar xzf bao_2.1.0_linux_amd64.tar.gz
 sudo mv bao /usr/local/bin/
 bao --version`,
+          },
+        ],
+      },
+      {
+        heading: "Alternative — run OpenBao in Docker",
+        code: [{ code: `docker run --cap-add=IPC_LOCK -d --name openbao -p 8200:8200 openbao/openbao:latest` }],
+      },
+      {
+        heading: "Build from source",
+        paragraphs: [
+          "OpenBao is Go and fully open source under the MPL, so a from-source build is a genuine, documented option — not just a workaround.",
+        ],
+        code: [
+          {
+            code: `git clone https://github.com/openbao/openbao.git
+cd openbao
+make dev`,
           },
         ],
       },
@@ -2298,6 +3156,40 @@ bao kv get secret/my-app`,
           },
         ],
       },
+      {
+        heading: "How a real server starts: init and unseal",
+        paragraphs: [
+          "The -dev server skips two steps that matter in production. bao operator init generates the root encryption key and splits it into a configurable number of unseal key shares using Shamir's Secret Sharing — by default you need any 3 of 5 shares to reconstruct the key. Every time the server process restarts, it comes up sealed (unable to decrypt anything) until enough shares are supplied again with bao operator unseal.",
+        ],
+        code: [
+          {
+            code: `bao operator init                 # prints 5 unseal key shares + a root token — store them safely, this only happens once
+bao operator unseal                # run 3 times, once per distinct key share
+bao status                         # Sealed: false once enough shares are in`,
+          },
+        ],
+        note: "There is no recovery if you lose enough unseal key shares to fall below the threshold — the data is cryptographically unreadable, by design. Back the shares up somewhere durable and separate from the server itself.",
+      },
+      {
+        heading: "Enable a secrets engine and scope access with a policy",
+        code: [
+          {
+            label: "mount KV at a custom path",
+            code: `bao secrets enable -path=apps kv-v2`,
+          },
+          {
+            label: "app-readonly.hcl",
+            code: `path "apps/data/my-app" {
+  capabilities = ["read"]
+}`,
+          },
+          {
+            label: "load the policy and attach it to a token",
+            code: `bao policy write app-readonly app-readonly.hcl
+bao token create -policy="app-readonly"`,
+          },
+        ],
+      },
     ],
     docs: { label: "OpenBao Documentation", url: "https://openbao.org/docs/" },
     kb: { label: "OpenBao GitHub Discussions", url: "https://github.com/openbao/openbao/discussions" },
@@ -2310,11 +3202,17 @@ bao kv get secret/my-app`,
     toolSlug: "vault",
     headline: "How to Install & Set Up HashiCorp Vault",
     summary:
-      "Install HashiCorp Vault from the official APT repository, start a dev server, and write your first secret.",
+      "Install HashiCorp Vault from the official APT repository, write your first secret, then see how it initializes/unseals/authorizes for real once you're past the dev server.",
     updated: "2026",
     featured: true,
     prerequisites: ["A Linux host"],
     sections: [
+      {
+        heading: "What Vault is actually managing",
+        paragraphs: [
+          "Vault sits between callers and secrets and mediates every request through two layers: auth methods, which establish who's calling (tokens, LDAP, a Kubernetes service account, AWS IAM), and policies, HCL rules that say what paths that identity can read or write. The secrets themselves are organized behind secrets engines — a static key-value store for the simple case, but also database, PKI, and cloud engines that mint short-lived, automatically-expiring credentials on demand instead of handing out something permanent.",
+        ],
+      },
       {
         heading: "Install on Ubuntu/Debian (HashiCorp APT repo)",
         code: [
@@ -2326,9 +3224,23 @@ sudo apt update && sudo apt install vault`,
         ],
       },
       {
+        heading: "Install on RHEL, CentOS Stream, Fedora, or Amazon Linux (HashiCorp YUM repo)",
+        code: [
+          {
+            code: `sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+sudo yum -y install vault`,
+          },
+        ],
+      },
+      {
+        heading: "Alternative — run Vault in Docker",
+        code: [{ code: `docker run --cap-add=IPC_LOCK -d --name vault -p 8200:8200 hashicorp/vault` }],
+      },
+      {
         heading: "Start a dev server",
         code: [{ code: `vault server -dev` }],
-        note: "Vault is licensed under the BUSL. For a fully open source, OSI-approved alternative, see the OpenBao guide.",
+        note: "Vault is licensed under the BUSL. For a fully open source, OSI-approved alternative with the same CLI, see the OpenBao guide.",
       },
       {
         heading: "Write and read a secret",
@@ -2338,6 +3250,36 @@ sudo apt update && sudo apt install vault`,
 vault status
 vault kv put secret/my-app password=s3cr3t
 vault kv get secret/my-app`,
+          },
+        ],
+      },
+      {
+        heading: "Beyond -dev: init and unseal",
+        paragraphs: [
+          "A dev server starts already unsealed and pre-authenticated, which is exactly what makes it unsuitable for anything real. A production Vault generates its master encryption key once, during vault operator init, and immediately splits it into key shares (5 by default, needing any 3 to reconstruct) using Shamir's Secret Sharing — no single operator ever holds the whole key. Every restart leaves Vault sealed until enough shares are supplied again.",
+        ],
+        code: [
+          {
+            code: `vault operator init                # prints 5 unseal key shares + a root token, once — record them somewhere durable
+vault operator unseal              # run 3 times total, once per distinct share
+vault status                       # Sealed: false once the threshold is met`,
+          },
+        ],
+        note: "Vault cannot decrypt its data if you lose enough key shares to drop below the threshold — there's no backdoor. Store the shares separately from the server and from each other.",
+      },
+      {
+        heading: "Scope access with a policy",
+        code: [
+          {
+            label: "app-readonly.hcl",
+            code: `path "secret/data/my-app" {
+  capabilities = ["read"]
+}`,
+          },
+          {
+            label: "load it and issue a scoped token",
+            code: `vault policy write app-readonly app-readonly.hcl
+vault token create -policy="app-readonly"`,
           },
         ],
       },
@@ -2841,7 +3783,7 @@ class QuickUser(HttpUser):
     toolSlug: "gitlab-ce",
     headline: "How to Install & Set Up GitLab CE",
     summary:
-      "Install the self-hosted GitLab Community Edition — repos, CI/CD, issues, and a container registry — with the Omnibus package.",
+      "Install the self-hosted GitLab Community Edition — repos, CI/CD, issues, and a container registry — with the Omnibus package, push your first project, run a pipeline, and schedule backups.",
     updated: "2026",
     featured: true,
     prerequisites: [
@@ -2850,6 +3792,13 @@ class QuickUser(HttpUser):
       "Ubuntu 22.04 / Debian 12 or a supported RHEL-family OS",
     ],
     sections: [
+      {
+        heading: "What the Omnibus package actually installs",
+        paragraphs: [
+          "GitLab CE isn't a single process — the Omnibus package bundles GitLab's Rails application together with its own bundled PostgreSQL, Redis, Nginx, and Sidekiq (background job processing) into one self-contained install, all managed as a unit through the gitlab-ctl command. That's what makes the single apt-get install below sufficient: there's no separate database or web server to stand up yourself.",
+          "Every setting — the external URL, SSL, SMTP, registry config, resource limits — lives in one file, /etc/gitlab/gitlab.rb. You edit that file and run sudo gitlab-ctl reconfigure to apply it; reconfigure is idempotent and safe to re-run any time you change something.",
+        ],
+      },
       {
         heading: "Install dependencies and add the repo",
         code: [
@@ -2870,6 +3819,19 @@ curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.de
         note: "With an https:// EXTERNAL_URL on a public domain, GitLab automatically requests a Let's Encrypt certificate.",
       },
       {
+        heading: "Install on RHEL, CentOS Stream, or Fedora",
+        paragraphs: [
+          "GitLab's installer script comes in matching Debian and RPM flavors — same Omnibus package underneath, just a different package manager driving it.",
+        ],
+        code: [
+          {
+            code: `sudo dnf install -y curl policycoreutils-python-utils perl
+curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.rpm.sh | sudo bash
+sudo EXTERNAL_URL="https://gitlab.example.com" dnf install -y gitlab-ce`,
+          },
+        ],
+      },
+      {
         heading: "Alternative — run GitLab in Docker",
         code: [
           {
@@ -2887,6 +3849,55 @@ curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.de
         heading: "Log in with the initial root password",
         code: [{ code: `sudo cat /etc/gitlab/initial_root_password` }],
         paragraphs: ["Browse to your EXTERNAL_URL and sign in as root with that password (it is auto-deleted after 24 hours)."],
+      },
+      {
+        heading: "Create a project and push your first commit",
+        paragraphs: [
+          "From the dashboard, New project → Create blank project, then push an existing local repo at it exactly like you would GitHub — GitLab speaks the same Git-over-SSH/HTTPS protocol.",
+        ],
+        code: [
+          {
+            code: `git remote add origin git@gitlab.example.com:my-group/my-project.git
+git push -u origin main`,
+          },
+        ],
+      },
+      {
+        heading: "Run your first CI/CD pipeline",
+        paragraphs: [
+          "CI/CD isn't a bolted-on integration here — it's built into the same product. Drop a .gitlab-ci.yml at the repo root and GitLab picks it up on the next push, provided a runner is available to execute it (a shared runner is pre-registered on gitlab.com; a self-hosted instance needs at least one gitlab-runner registered against it).",
+        ],
+        code: [
+          {
+            label: ".gitlab-ci.yml",
+            code: `stages: [build, test]
+
+build:
+  stage: build
+  script:
+    - npm ci
+    - npm run build
+
+test:
+  stage: test
+  script:
+    - npm test`,
+          },
+        ],
+        note: "No runner registered yet? Install gitlab-runner on any host and run `gitlab-runner register` — it walks you through pointing it at your instance and a registration token from Settings → CI/CD → Runners.",
+      },
+      {
+        heading: "Back up the instance",
+        paragraphs: [
+          "GitLab ships its own backup tooling as part of the Omnibus package — it archives the database, repositories, and application data into a single timestamped tarball you can move off-host.",
+        ],
+        code: [
+          {
+            code: `sudo gitlab-backup create
+ls /var/opt/gitlab/backups/`,
+          },
+        ],
+        note: "The backup tool does not include /etc/gitlab/gitlab.rb or your TLS certificates — back those up separately, since they contain the secrets needed to restore anything at all.",
       },
     ],
     docs: { label: "GitLab Documentation", url: "https://docs.gitlab.com/" },
