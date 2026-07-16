@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { sendWhatsApp } from "@/lib/sendWhatsApp";
 
 export type ContactSource = "contact" | "chatbox" | "popup";
 
@@ -93,6 +94,16 @@ export async function POST(request: Request) {
       { status: 502 }
     );
   }
+
+  // Best-effort — a WhatsApp delivery failure should never fail the request; the email above
+  // already succeeded and is the source of truth.
+  const whatsappText =
+    `New enquiry via ${sourceLabel}\n` +
+    `Name: ${name}\n` +
+    `Email: ${email}\n` +
+    (project ? `Project: ${project}\n` : "") +
+    `Message: ${message.length > 200 ? message.slice(0, 200) + "…" : message}`;
+  await sendWhatsApp(whatsappText);
 
   return Response.json({ ok: true });
 }
