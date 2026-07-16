@@ -1,23 +1,28 @@
 "use client";
 import { useState } from "react";
+import { submitLead } from "@/lib/submitLead";
 
 export default function Contact() {
-  const [form, setForm] = useState({ name: "", email: "", project: "", message: "" });
+  const [form, setForm] = useState({ name: "", email: "", project: "", message: "", company: "" });
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // mailto fallback — replace with a form API (Formspree, Resend, etc.) when ready
-    const subject = encodeURIComponent(`Project Enquiry from ${form.name}`);
-    const body = encodeURIComponent(
-      `Name: ${form.name}\nEmail: ${form.email}\nProject type: ${form.project}\n\n${form.message}`
-    );
-    window.location.href = `mailto:hello@openstackgit.com?subject=${subject}&body=${body}`;
-    setSent(true);
+    setSending(true);
+    setError(null);
+    const result = await submitLead({ ...form, source: "contact" });
+    setSending(false);
+    if (result.ok) {
+      setSent(true);
+    } else {
+      setError(result.error);
+    }
   };
 
   const inputStyle: React.CSSProperties = {
@@ -267,8 +272,25 @@ export default function Contact() {
                   />
                 </div>
 
+                {/* Honeypot — hidden from real visitors, bots often fill every field */}
+                <input
+                  type="text"
+                  name="company"
+                  value={form.company}
+                  onChange={handleChange}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
+                />
+
+                {error && (
+                  <p style={{ fontSize: 13.5, color: "#DC2626", margin: 0 }}>{error}</p>
+                )}
+
                 <button
                   type="submit"
+                  disabled={sending}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -281,7 +303,8 @@ export default function Contact() {
                     fontSize: 15,
                     fontWeight: 600,
                     border: "none",
-                    cursor: "pointer",
+                    cursor: sending ? "default" : "pointer",
+                    opacity: sending ? 0.7 : 1,
                     transition: "all var(--transition)",
                     fontFamily: "inherit",
                   }}
@@ -296,11 +319,17 @@ export default function Contact() {
                     (e.currentTarget as HTMLElement).style.boxShadow = "none";
                   }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="22" y1="2" x2="11" y2="13" />
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                  </svg>
-                  Send Message
+                  {sending ? (
+                    "Sending..."
+                  ) : (
+                    <>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="22" y1="2" x2="11" y2="13" />
+                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                      </svg>
+                      Send Message
+                    </>
+                  )}
                 </button>
               </form>
             )}

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
+import ChatWidget from "@/components/ChatWidget";
+import LeadPopup from "@/components/LeadPopup";
 import "./globals.css";
 
 const ADSENSE_CLIENT_ID = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
@@ -63,7 +65,11 @@ export default function RootLayout({
           />
         )}
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <ChatWidget />
+        <LeadPopup />
+      </body>
     </html>
   );
 }

@@ -15,6 +15,12 @@ services:
       PORT: 3000
       # Optional: raises GitHub API limit for /downloads tool pages (on-demand ISR).
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # SMTP for the Contact form / chatbox / lead popup.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      CONTACT_TO_EMAIL: ${CONTACT_TO_EMAIL:-}
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1"]
       interval: 30s
