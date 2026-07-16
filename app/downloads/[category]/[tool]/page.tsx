@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { findTool, featuredToolParams } from "@/lib/devopsCatalog";
 import { getToolReleases, type ToolRelease } from "@/lib/githubReleases";
+import { findGuide } from "@/lib/guides";
 
 // Prerender high-traffic tools at build time; the rest render on-demand (ISR).
 export async function generateStaticParams() {
@@ -65,6 +66,7 @@ export default async function ToolPage({
   if (!found) notFound();
 
   const { category: cat, tool: t } = found;
+  const guide = findGuide(t.slug);
   const releases: ToolRelease[] | null = t.repo ? await getToolReleases(t.repo) : null;
   const hasReleases = releases && releases.length > 0;
   const latest = hasReleases ? releases[0] : null;
@@ -142,6 +144,28 @@ export default async function ToolPage({
                 </svg>
                 Official Install Guide
               </a>
+              {guide && (
+                <Link
+                  href={`/blog/${guide.slug}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: "var(--bg-dark)",
+                    color: "#fff",
+                    padding: "12px 26px",
+                    borderRadius: "var(--radius)",
+                    fontSize: 15,
+                    fontWeight: 600,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  </svg>
+                  Read the Install Guide
+                </Link>
+              )}
               {t.repo && (
                 <a
                   href={`https://github.com/${t.repo}`}

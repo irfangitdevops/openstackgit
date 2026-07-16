@@ -68,6 +68,12 @@ export default function DownloadsPage() {
               linked straight to its official source.
             </p>
             <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 20 }}>
+              New to a tool?{" "}
+              <Link href="/blog" style={{ color: "var(--primary)", fontWeight: 600 }}>
+                Read our step-by-step install guides →
+              </Link>
+            </p>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 8 }}>
               Looking for Git specifically?{" "}
               <Link href="/download-git" style={{ color: "var(--primary)", fontWeight: 600 }}>
                 See the dedicated Git download page →
