@@ -279,6 +279,7 @@ sudo reboot`,
           "Browse to https://your-server-ip:8006 and log in as root with the system password. On the CLI:",
         ],
         code: [{ code: `pveversion` }],
+        note: "Proxmox VE is built on, and only officially supports, Debian — there is no RHEL/CentOS/Fedora variant, and no supported source build. If you specifically need a RHEL-family hypervisor host, see the OpenStack or OpenNebula guides instead.",
       },
     ],
     docs: { label: "Proxmox VE Documentation", url: "https://pve.proxmox.com/pve-docs/" },
@@ -316,6 +317,27 @@ sudo apt-get update`,
         code: [
           {
             code: `sudo apt-get install -y cloudstack-management mysql-server
+sudo cloudstack-setup-databases cloud:password@localhost --deploy-as=root
+sudo cloudstack-setup-management`,
+          },
+        ],
+      },
+      {
+        heading: "Install on RHEL, CentOS Stream, or Rocky Linux",
+        paragraphs: [
+          "CloudStack publishes matching RPM packages alongside the APT ones — same management server, same setup commands, just yum/dnf driving the install.",
+        ],
+        code: [
+          {
+            code: `sudo rpm --import http://download.cloudstack.org/RPM-GPG-KEY-cloudstack
+cat <<EOF | sudo tee /etc/yum.repos.d/cloudstack.repo
+[cloudstack]
+name=cloudstack
+baseurl=http://download.cloudstack.org/centos/9/4.19/
+enabled=1
+gpgcheck=1
+EOF
+sudo dnf install -y cloudstack-management mariadb-server
 sudo cloudstack-setup-databases cloud:password@localhost --deploy-as=root
 sudo cloudstack-setup-management`,
           },
@@ -361,13 +383,29 @@ sudo bash minione`,
         ],
       },
       {
-        heading: "Option B — Repository install (front-end)",
+        heading: "Option B — Repository install on Ubuntu (front-end)",
         code: [
           {
             code: `wget -q -O- https://downloads.opennebula.io/repo/repo2.key | gpg --dearmor | sudo tee /etc/apt/keyrings/opennebula.gpg > /dev/null
 echo "deb [signed-by=/etc/apt/keyrings/opennebula.gpg] https://downloads.opennebula.io/repo/6.10/Ubuntu/22.04 stable opennebula" | sudo tee /etc/apt/sources.list.d/opennebula.list
 sudo apt update
 sudo apt install -y opennebula opennebula-sunstone opennebula-fireedge opennebula-gate opennebula-flow`,
+          },
+        ],
+      },
+      {
+        heading: "Option C — Repository install on RHEL / CentOS Stream / Rocky Linux",
+        code: [
+          {
+            code: `sudo rpm --import https://downloads.opennebula.io/repo/repo2.key
+cat <<EOF | sudo tee /etc/yum.repos.d/opennebula.repo
+[opennebula]
+name=opennebula
+baseurl=https://downloads.opennebula.io/repo/6.10/CentOS/9/
+enabled=1
+gpgcheck=1
+EOF
+sudo dnf install -y opennebula opennebula-sunstone opennebula-fireedge opennebula-gate opennebula-flow`,
           },
         ],
       },
@@ -399,7 +437,7 @@ sudo apt install -y opennebula opennebula-sunstone opennebula-fireedge opennebul
     ],
     sections: [
       {
-        heading: "Add the repositories",
+        heading: "Add the repositories on Ubuntu",
         code: [
           {
             code: `echo "deb http://deb.theforeman.org/ jammy 3.12" | sudo tee /etc/apt/sources.list.d/foreman.list
@@ -410,13 +448,29 @@ sudo apt update`,
         ],
       },
       {
+        heading: "Add the repositories on RHEL / Enterprise Linux 8 or 9",
+        code: [
+          {
+            code: `sudo dnf install -y https://yum.theforeman.org/releases/3.12/el9/x86_64/foreman-release.rpm
+sudo dnf module enable -y foreman:el9`,
+          },
+        ],
+        note: "Swap el9 for el8 if you're on Enterprise Linux 8.",
+      },
+      {
         heading: "Run the installer",
         paragraphs: [
-          "The foreman-installer is a Puppet-based wrapper that configures Foreman, its proxy, and dependencies in one shot.",
+          "The foreman-installer is a Puppet-based wrapper that configures Foreman, its proxy, and dependencies in one shot — identical command whether the packages came from apt or dnf.",
         ],
         code: [
           {
+            label: "Ubuntu",
             code: `sudo apt install -y foreman-installer
+sudo foreman-installer`,
+          },
+          {
+            label: "RHEL / Enterprise Linux",
+            code: `sudo dnf install -y foreman-installer
 sudo foreman-installer`,
           },
         ],
@@ -738,6 +792,7 @@ terraform show`,
       {
         heading: "Verify the installation",
         code: [{ code: `pulumi version` }],
+        note: "The install script and Homebrew/Chocolatey packages above are already the same on RHEL, Fedora, Debian, and Ubuntu — there's no separate distro-specific repo needed. Pulumi's CLI itself is source-available rather than fully open source; the SDKs it drives are Apache-2.0.",
       },
       {
         heading: "Create your first project",
@@ -783,6 +838,7 @@ helm install crossplane \\
       {
         heading: "Verify the installation",
         code: [{ code: `kubectl get pods -n crossplane-system` }],
+        note: "Helm and kubectl are the entire install surface — Crossplane deploys into your cluster, not onto the host OS, so this Helm command is identical on RHEL, Fedora, Debian, or Ubuntu.",
       },
       {
         heading: "Install the Crossplane CLI",
@@ -791,6 +847,19 @@ helm install crossplane \\
           {
             code: `curl -sL https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh | sh
 sudo mv crossplane /usr/local/bin`,
+          },
+        ],
+      },
+      {
+        heading: "Build from source",
+        paragraphs: [
+          "Crossplane is a standard Go/Kubernetes-controller project with a Makefile, so a from-source build is genuinely documented.",
+        ],
+        code: [
+          {
+            code: `git clone https://github.com/crossplane/crossplane.git
+cd crossplane
+make build`,
           },
         ],
       },
@@ -998,7 +1067,7 @@ ansible-playbook -i inventory.ini site.yml --ask-vault-pass`,
     ],
     sections: [
       {
-        heading: "Add the Puppet 8 repository (Ubuntu 22.04)",
+        heading: "Add the Puppet 8 repository on Ubuntu 22.04",
         code: [
           {
             code: `wget https://apt.puppet.com/puppet8-release-jammy.deb
@@ -1008,10 +1077,21 @@ sudo apt update`,
         ],
       },
       {
+        heading: "Add the Puppet 8 repository on RHEL / Enterprise Linux 9",
+        code: [
+          {
+            code: `sudo rpm -Uvh https://yum.puppet.com/puppet8-release-el-9.noarch.rpm`,
+          },
+        ],
+        note: "Swap el-9 for el-8 on Enterprise Linux 8.",
+      },
+      {
         heading: "Install the server and agents",
         code: [
-          { label: "on the server", code: `sudo apt install -y puppetserver` },
-          { label: "on each managed node", code: `sudo apt install -y puppet-agent` },
+          { label: "on the server (apt)", code: `sudo apt install -y puppetserver` },
+          { label: "on each managed node (apt)", code: `sudo apt install -y puppet-agent` },
+          { label: "on the server (dnf)", code: `sudo dnf install -y puppetserver` },
+          { label: "on each managed node (dnf)", code: `sudo dnf install -y puppet-agent` },
         ],
       },
       {
@@ -1053,6 +1133,7 @@ sudo /opt/puppetlabs/bin/puppet agent --test`,
       {
         heading: "Verify the installation",
         code: [{ code: `chef -v` }],
+        note: "The omnitruck installer script already detects your distro and picks the right package (deb on Debian/Ubuntu, rpm on RHEL/Fedora/Amazon Linux) automatically — no separate RHEL-specific command needed.",
       },
       {
         heading: "Generate and apply your first cookbook",
@@ -1092,6 +1173,12 @@ sudo chef-client --local-mode --runlist 'recipe[my_cookbook::default]'`,
             code: `curl -o bootstrap-salt.sh -L https://github.com/saltstack/salt-bootstrap/releases/latest/download/bootstrap-salt.sh
 sudo sh bootstrap-salt.sh -M -P`,
           },
+        ],
+      },
+      {
+        heading: "About the bootstrap script's distro coverage",
+        paragraphs: [
+          "bootstrap-salt.sh already detects the underlying OS and calls the right package manager itself — apt on Debian/Ubuntu, dnf/yum on RHEL/Fedora/Amazon Linux — so the single command above is genuinely the same on every supported Linux distro.",
         ],
       },
       {
@@ -1341,7 +1428,12 @@ podman run hello-world`,
       {
         heading: "Install containerd",
         paragraphs: ["The simplest route on Ubuntu is the containerd.io package from Docker's repository (see the Docker Engine guide for adding the repo)."],
-        code: [{ code: `sudo apt-get install -y containerd.io` }],
+        code: [
+          { label: "Ubuntu / Debian (Docker's APT repo)", code: `sudo apt-get install -y containerd.io` },
+          { label: "RHEL / CentOS Stream / Fedora (Docker's RPM repo)", code: `sudo dnf -y install dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf install -y containerd.io` },
+        ],
       },
       {
         heading: "Generate the default config",
@@ -1379,7 +1471,7 @@ sudo systemctl enable containerd`,
     ],
     sections: [
       {
-        heading: "Add the CRI-O repository (Ubuntu)",
+        heading: "Add the CRI-O repository on Ubuntu / Debian",
         paragraphs: ["Pin CRI-O to the same minor version as your Kubernetes cluster."],
         code: [
           {
@@ -1392,12 +1484,29 @@ sudo apt-get update`,
         ],
       },
       {
-        heading: "Install and start CRI-O",
+        heading: "Add the CRI-O repository on RHEL / CentOS Stream / Fedora",
+        paragraphs: ["Same pkgs.k8s.io project, same versioning scheme, just the RPM side of the same repo."],
         code: [
           {
-            code: `sudo apt-get install -y cri-o
-sudo systemctl enable --now crio`,
+            code: `CRIO_VERSION=v1.30
+cat <<EOF | sudo tee /etc/yum.repos.d/cri-o.repo
+[cri-o]
+name=CRI-O
+baseurl=https://pkgs.k8s.io/addons:/cri-o:/stable:/$CRIO_VERSION/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/addons:/cri-o:/stable:/$CRIO_VERSION/rpm/repodata/repomd.xml.key
+EOF`,
           },
+        ],
+      },
+      {
+        heading: "Install and start CRI-O",
+        code: [
+          { label: "apt", code: `sudo apt-get install -y cri-o
+sudo systemctl enable --now crio` },
+          { label: "dnf", code: `sudo dnf install -y cri-o
+sudo systemctl enable --now crio` },
         ],
       },
       {
@@ -1621,7 +1730,7 @@ kubectl config set-context --current --namespace=my-team`,
       {
         heading: "Install the k3s server",
         code: [{ code: `curl -sfL https://get.k3s.io | sh -` }],
-        note: "This installs k3s as a systemd service and writes a kubeconfig to /etc/rancher/k3s/k3s.yaml.",
+        note: "This installs k3s as a systemd service and writes a kubeconfig to /etc/rancher/k3s/k3s.yaml. There's no separate RHEL vs. Ubuntu step — it's a single static binary the script downloads and installs identically on any systemd-based distro.",
       },
       {
         heading: "Add worker nodes (optional)",
@@ -1659,6 +1768,7 @@ curl -sfL https://get.k3s.io | K3S_URL=https://SERVER_IP:6443 K3S_TOKEN=NODE_TOK
       {
         heading: "Download and install k0s",
         code: [{ code: `curl -sSLf https://get.k0s.sh | sudo sh` }],
+        note: "k0s is a single static binary with zero host OS dependencies by design — the install script works the same on RHEL, Fedora, Debian, and Ubuntu.",
       },
       {
         heading: "Run a single-node cluster",
@@ -1694,6 +1804,21 @@ sudo k0s kubectl get nodes`,
     updated: "2026",
     prerequisites: ["A Linux host with snapd (Ubuntu ships it by default), 4 GB+ RAM"],
     sections: [
+      {
+        heading: "Enable snapd on RHEL, CentOS Stream, or Fedora first",
+        paragraphs: [
+          "Ubuntu ships snapd out of the box; RHEL-family distros don't, so install and enable it before the snap command below will work at all.",
+        ],
+        code: [
+          {
+            code: `sudo dnf install -y epel-release
+sudo dnf install -y snapd
+sudo systemctl enable --now snapd.socket
+sudo ln -s /var/lib/snapd/snap /snap
+# log out and back in, or reboot, so the snap binary is on PATH`,
+          },
+        ],
+      },
       {
         heading: "Install MicroK8s",
         code: [
@@ -1738,13 +1863,25 @@ microk8s kubectl get nodes`,
     ],
     sections: [
       {
-        heading: "Option A — Minikube",
+        heading: "Option A — Minikube (generic binary)",
         code: [
           {
             code: `curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
 sudo install minikube-linux-amd64 /usr/local/bin/minikube
 minikube start`,
           },
+        ],
+      },
+      {
+        heading: "Option A (alternative) — Minikube's native .deb / .rpm package",
+        paragraphs: [
+          "Minikube also publishes proper distro packages if you'd rather have it managed by apt or dnf instead of a loose binary in /usr/local/bin.",
+        ],
+        code: [
+          { label: "Debian / Ubuntu", code: `curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube_latest_amd64.deb
+sudo dpkg -i minikube_latest_amd64.deb` },
+          { label: "RHEL / CentOS Stream / Fedora", code: `curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-latest.x86_64.rpm
+sudo rpm -Uvh minikube-latest.x86_64.rpm` },
         ],
       },
       {
@@ -1813,6 +1950,7 @@ helm install rancher rancher-stable/rancher \\
       {
         heading: "Verify the installation",
         paragraphs: ["Open https://your-host and set the admin password to complete setup."],
+        note: "Both install paths run inside Docker or a Kubernetes cluster, so neither one differs between RHEL-family and Debian-family hosts — the only OS-level prerequisite is Docker Engine or Kubernetes itself being installed already.",
       },
     ],
     docs: { label: "Rancher Documentation", url: "https://ranchermanager.docs.rancher.com/" },
@@ -2012,6 +2150,7 @@ volumes:
         heading: "Start and verify",
         code: [{ code: `docker compose up -d` }],
         paragraphs: ["Open http://your-host:8000 and authorize with your Git host to see your repositories."],
+        note: "This whole install is Docker Compose, so it's byte-for-byte the same on RHEL, Fedora, Debian, or Ubuntu — Woodpecker never touches the host's native package manager.",
       },
     ],
     docs: { label: "Woodpecker CI Documentation", url: "https://woodpecker-ci.org/docs/intro" },
@@ -2048,12 +2187,18 @@ ENABLED = true`,
         paragraphs: ["Create a registration token under Site Administration → Actions → Runners, then register and start the runner."],
         code: [
           {
+            label: "download the binary (any Linux distro)",
+            code: `wget -O act_runner https://dl.gitea.com/act_runner/latest/act_runner-latest-linux-amd64
+chmod +x act_runner`,
+          },
+          {
             code: `./act_runner register \\
   --instance https://gitea.example.com \\
   --token YOUR_REGISTRATION_TOKEN
 ./act_runner daemon`,
           },
         ],
+        note: "The act_runner binary is distro-agnostic — same download for RHEL and Ubuntu. It's also a plain Go project, so `git clone https://gitea.com/gitea/act_runner && make build` is a genuine from-source option.",
       },
       {
         heading: "Verify",
@@ -2099,6 +2244,7 @@ fly -t local sync`,
       {
         heading: "Set your first pipeline",
         code: [{ code: `fly -t local set-pipeline -p hello -c pipeline.yml` }],
+        note: "Concourse ships as containers, so the Docker Compose file above is identical regardless of the host distro's package manager.",
       },
     ],
     docs: { label: "Concourse CI Documentation", url: "https://concourse-ci.org/docs.html" },
@@ -2161,6 +2307,7 @@ argocd app create guestbook \\
 argocd app sync guestbook`,
           },
         ],
+        note: "Both the manifest apply and the CLI binary are OS-agnostic — Argo CD runs inside your cluster, and the argocd CLI is a single Go binary with the same download for RHEL and Ubuntu.",
       },
     ],
     docs: { label: "Argo CD Documentation", url: "https://argo-cd.readthedocs.io/en/stable/" },
@@ -2205,7 +2352,7 @@ flux bootstrap github \\
   --personal`,
           },
         ],
-        note: "Bootstrap commits the Flux components into your repo and installs them — from then on, Git is the source of truth.",
+        note: "Bootstrap commits the Flux components into your repo and installs them — from then on, Git is the source of truth. The install script and CLI binary above are identical on RHEL and Ubuntu; Flux itself is a genuinely open source Go project buildable from source via `git clone https://github.com/fluxcd/flux2.git && make build`.",
       },
     ],
     docs: { label: "Flux Documentation", url: "https://fluxcd.io/flux/installation/" },
@@ -2251,6 +2398,7 @@ sudo tar xvzf tkn_Linux_x86_64.tar.gz -C /usr/local/bin/ tkn` },
 kubectl get pods -n tekton-pipelines`,
           },
         ],
+        note: "Tekton Pipelines deploys via kubectl apply and tkn is a plain Go binary — neither differs between RHEL-family and Debian-family hosts.",
       },
     ],
     docs: { label: "Tekton Documentation", url: "https://tekton.dev/docs/" },
@@ -2273,7 +2421,10 @@ kubectl get pods -n tekton-pipelines`,
     ],
     sections: [
       {
-        heading: "Install Halyard",
+        heading: "Install Halyard (Debian/Ubuntu only)",
+        paragraphs: [
+          "Halyard's automated installer genuinely only supports Debian and Ubuntu — there's no RHEL/CentOS/Fedora equivalent script, which is unusual among the tools in this catalog and worth knowing before you provision a host for it.",
+        ],
         code: [
           {
             code: `curl -O https://raw.githubusercontent.com/spinnaker/halyard/master/install/debian/InstallHalyard.sh
@@ -2281,6 +2432,7 @@ sudo bash InstallHalyard.sh
 hal -v`,
           },
         ],
+        note: "On RHEL-family hosts, skip Halyard entirely and use the Spinnaker Operator instead — it deploys Spinnaker onto any Kubernetes cluster (kubectl apply -f, Helm chart available) regardless of the underlying node OS.",
       },
       {
         heading: "Configure and deploy",
@@ -2353,6 +2505,7 @@ kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/lat
 kubectl get pods -n argo`,
           },
         ],
+        note: "Every install step here is kubectl apply or a plain Go binary download — nothing distro-specific, so RHEL and Ubuntu hosts follow the exact same commands.",
       },
     ],
     docs: { label: "Argo Rollouts Documentation", url: "https://argo-rollouts.readthedocs.io/" },
@@ -2394,6 +2547,7 @@ cp harbor.yml.tmpl harbor.yml`,
         heading: "Configure and install",
         paragraphs: ["Edit harbor.yml — set hostname and either configure the https block or comment it out for an http-only test — then run the installer."],
         code: [{ code: `sudo ./install.sh` }],
+        note: "This installer is a Docker Compose wrapper, so it runs identically on RHEL, Fedora, Debian, or Ubuntu — the only real prerequisite is Docker Engine and Docker Compose already being installed on the host.",
       },
       {
         heading: "Verify",
@@ -2442,6 +2596,22 @@ docker run -d -p 8081:8081 --name nexus \\
         code: [{ code: `docker exec nexus cat /nexus-data/admin.password` }],
       },
       {
+        heading: "Alternative — run without Docker (bundled JRE tarball)",
+        paragraphs: [
+          "Sonatype doesn't publish native apt/dnf packages, but the tarball download bundles its own Java runtime, so it drops onto RHEL or Ubuntu identically — no distro-specific step.",
+        ],
+        code: [
+          {
+            code: `curl -LO https://download.sonatype.com/nexus/3/latest-unix.tar.gz
+tar xzf latest-unix.tar.gz
+sudo useradd --system --create-home --home-dir /opt/nexus nexus
+sudo chown -R nexus: nexus-3* sonatype-work
+sudo -u nexus ./nexus-3*/bin/nexus start`,
+          },
+        ],
+        note: "The admin password from this install method lands in sonatype-work/nexus3/admin.password instead of the Docker path above.",
+      },
+      {
         heading: "Verify",
         paragraphs: [
           "Open http://your-host:8081, sign in as admin with that password, and complete the setup wizard to set a new password and anonymous-access policy.",
@@ -2488,6 +2658,7 @@ docker pull localhost:5000/alpine`,
       {
         heading: "Verify",
         code: [{ code: `curl http://localhost:5000/v2/_catalog` }],
+        note: "This registry ships as a container image and nothing else — the same docker run works identically whether the host is RHEL, Fedora, Debian, or Ubuntu.",
       },
     ],
     docs: { label: "Distribution Documentation", url: "https://distribution.github.io/distribution/" },
@@ -2780,6 +2951,20 @@ tar xzf victoria-metrics-linux-amd64-v1.102.0.tar.gz
       {
         heading: "Verify",
         code: [{ code: `curl http://localhost:8428/health` }],
+        note: "Both install methods above already work identically on RHEL and Ubuntu — the tarball is a static Go binary and Docker abstracts the host OS entirely.",
+      },
+      {
+        heading: "Build from source",
+        paragraphs: [
+          "VictoriaMetrics is Go and fully open source, so building it yourself is the same handful of commands the release tarballs come from.",
+        ],
+        code: [
+          {
+            code: `git clone https://github.com/VictoriaMetrics/VictoriaMetrics.git
+cd VictoriaMetrics
+make victoria-metrics`,
+          },
+        ],
       },
     ],
     docs: { label: "VictoriaMetrics Documentation", url: "https://docs.victoriametrics.com/" },
@@ -2802,7 +2987,7 @@ tar xzf victoria-metrics-linux-amd64-v1.102.0.tar.gz
     ],
     sections: [
       {
-        heading: "Add the Zabbix repository",
+        heading: "Add the Zabbix repository on Ubuntu",
         code: [
           {
             code: `wget https://repo.zabbix.com/zabbix/6.4/ubuntu/pool/main/z/zabbix-release/zabbix-release_6.4-1+ubuntu22.04_all.deb
@@ -2812,10 +2997,25 @@ sudo apt update`,
         ],
       },
       {
+        heading: "Add the Zabbix repository on RHEL / CentOS Stream / Rocky Linux 9",
+        code: [
+          {
+            code: `sudo rpm -Uvh https://repo.zabbix.com/zabbix/6.4/rhel/9/x86_64/zabbix-release-6.4-1.el9.noarch.rpm
+sudo dnf clean all`,
+          },
+        ],
+      },
+      {
         heading: "Install server, frontend, and agent",
         code: [
           {
+            label: "apt (Ubuntu)",
             code: `sudo apt install -y zabbix-server-mysql zabbix-frontend-php \\
+  zabbix-apache-conf zabbix-sql-scripts zabbix-agent`,
+          },
+          {
+            label: "dnf (RHEL family)",
+            code: `sudo dnf install -y zabbix-server-mysql zabbix-web-mysql \\
   zabbix-apache-conf zabbix-sql-scripts zabbix-agent`,
           },
         ],
@@ -2830,7 +3030,7 @@ sudo mysql -uroot -e "grant all privileges on zabbix.* to zabbix@localhost;"
 zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql --default-character-set=utf8mb4 -uzabbix -p zabbix`,
           },
         ],
-        note: "Set DBPassword in /etc/zabbix/zabbix_server.conf, then restart zabbix-server, zabbix-agent, and apache2. Finish setup at http://your-host/zabbix (default login Admin / zabbix).",
+        note: "Set DBPassword in /etc/zabbix/zabbix_server.conf, then restart zabbix-server, zabbix-agent, and apache2 (or httpd on RHEL). Finish setup at http://your-host/zabbix (default login Admin / zabbix).",
       },
     ],
     docs: { label: "Zabbix Documentation", url: "https://www.zabbix.com/documentation/current/" },
@@ -2856,7 +3056,7 @@ zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql --default-charact
 sh /tmp/netdata-kickstart.sh`,
           },
         ],
-        note: "The script auto-detects your OS, installs Netdata, and starts it as a service. Add --stable-channel for stable releases only.",
+        note: "The script auto-detects your OS — RHEL, Fedora, Debian, Ubuntu, and more — and picks the right native package manager itself, so this exact command is the whole install regardless of distro. Add --stable-channel for stable releases only.",
       },
       {
         heading: "Verify",
@@ -2907,6 +3107,17 @@ curl -O -L "https://raw.githubusercontent.com/grafana/loki/main/cmd/loki/loki-lo
         heading: "Verify",
         code: [{ code: `curl http://localhost:3100/ready` }],
         paragraphs: ["In Grafana, add a Loki data source pointing at http://localhost:3100 and explore your logs."],
+        note: "Both options above are already distro-agnostic (Docker Compose, or a static Go binary) — no separate RHEL path is needed.",
+      },
+      {
+        heading: "Build from source",
+        code: [
+          {
+            code: `git clone https://github.com/grafana/loki.git
+cd loki
+make loki`,
+          },
+        ],
       },
     ],
     docs: { label: "Loki Documentation", url: "https://grafana.com/docs/loki/latest/" },
@@ -2940,13 +3151,40 @@ curl -O -L "https://raw.githubusercontent.com/grafana/loki/main/cmd/loki/loki-lo
         ],
       },
       {
+        heading: "Alternative — native .deb / .rpm packages",
+        paragraphs: [
+          "OpenSearch also publishes proper Debian and RPM packages if you'd rather it be managed as a systemd service by apt or dnf than run in Docker.",
+        ],
+        code: [
+          {
+            label: "Debian / Ubuntu",
+            code: `curl -o- https://artifacts.opensearch.org/publicKeys/opensearch.pgp | sudo gpg --dearmor -o /usr/share/keyrings/opensearch-keyring
+echo "deb [signed-by=/usr/share/keyrings/opensearch-keyring] https://artifacts.opensearch.org/releases/bundle/opensearch/2.x/apt stable main" | sudo tee /etc/apt/sources.list.d/opensearch-2.x.list
+sudo apt update
+sudo apt install -y opensearch`,
+          },
+          {
+            label: "RHEL / CentOS Stream / Fedora",
+            code: `sudo curl -SL https://artifacts.opensearch.org/publicKeys/opensearch.pgp -o /etc/pki/rpm-gpg/GPG-KEY-opensearch
+cat <<EOF | sudo tee /etc/yum.repos.d/opensearch-2.x.repo
+[opensearch-2.x]
+name=OpenSearch 2.x
+baseurl=https://artifacts.opensearch.org/releases/bundle/opensearch/2.x/yum
+gpgkey=file:///etc/pki/rpm-gpg/GPG-KEY-opensearch
+gpgcheck=1
+EOF
+sudo dnf install -y opensearch`,
+          },
+        ],
+      },
+      {
         heading: "Verify",
         code: [
           {
             code: `curl -k -u admin:Str0ng!Passw0rd https://localhost:9200`,
           },
         ],
-        note: "For the Kibana-style UI, run the opensearchproject/opensearch-dashboards image and point it at your OpenSearch node.",
+        note: "For the Kibana-style UI, run the opensearchproject/opensearch-dashboards image and point it at your OpenSearch node — or install the matching opensearch-dashboards package from the same repos above.",
       },
     ],
     docs: { label: "OpenSearch Documentation", url: "https://opensearch.org/docs/latest/" },
@@ -2971,14 +3209,24 @@ curl -O -L "https://raw.githubusercontent.com/grafana/loki/main/cmd/loki/loki-lo
             code: `curl https://raw.githubusercontent.com/fluent/fluent-bit/master/install.sh | sh`,
           },
         ],
+        note: "This script already detects RHEL/Fedora vs. Debian/Ubuntu itself and installs the matching rpm or deb package — no separate command needed per distro.",
       },
       {
-        heading: "Install Fluentd (fluent-package)",
+        heading: "Install Fluentd (fluent-package) on Ubuntu",
         code: [
           {
             code: `curl -fsSL https://toolbelt.treasuredata.com/sh/install-ubuntu-jammy-fluent-package5.sh | sh`,
           },
         ],
+      },
+      {
+        heading: "Install Fluentd (fluent-package) on RHEL / Enterprise Linux 9",
+        code: [
+          {
+            code: `curl -fsSL https://toolbelt.treasuredata.com/sh/install-redhat9-fluent-package5.sh | sh`,
+          },
+        ],
+        note: "Treasure Data's toolbelt ships a matching install-<distro>-fluent-package5.sh script per supported OS/release — swap the URL's distro segment (redhat9, redhat8, ubuntu-jammy, debian-bookworm, etc.) to match your host.",
       },
       {
         heading: "Verify and run",
@@ -3016,7 +3264,7 @@ fluent-bit -i tail -p path=/var/log/syslog -o stdout`,
   jaegertracing/all-in-one:latest`,
           },
         ],
-        note: "Ports 4317/4318 accept OpenTelemetry (OTLP) gRPC/HTTP spans; 16686 serves the UI. all-in-one keeps traces in memory — use a real storage backend (Cassandra, Elasticsearch) for production.",
+        note: "Ports 4317/4318 accept OpenTelemetry (OTLP) gRPC/HTTP spans; 16686 serves the UI. all-in-one keeps traces in memory — use a real storage backend (Cassandra, Elasticsearch) for production. This is a container image, so the command is identical on RHEL and Ubuntu hosts.",
       },
       {
         heading: "Verify",
@@ -3084,6 +3332,7 @@ volumes: { mongodb_data: {}, os_data: {} }`,
         heading: "Start and verify",
         code: [{ code: `docker compose up -d` }],
         paragraphs: ["Open http://localhost:9000 and log in as admin with the password you hashed above."],
+        note: "This entire stack is defined in the Compose file, so it runs the same on RHEL, Fedora, Debian, or Ubuntu — Graylog also publishes native .deb/.rpm packages if you'd rather avoid Docker, documented on its own install page.",
       },
     ],
     docs: { label: "Graylog Documentation", url: "https://go2docs.graylog.org/" },
@@ -3326,6 +3575,12 @@ sops --encrypt --age age1examplepublickey... secrets.yaml > secrets.enc.yaml`,
 sops secrets.enc.yaml          # opens decrypted in your editor`,
           },
         ],
+        note: "The binary download above is the same file for RHEL and Ubuntu — SOPS ships no distro-specific packages, just this and Homebrew.",
+      },
+      {
+        heading: "Build from source",
+        paragraphs: ["SOPS is Go, so a fresh build via the toolchain is straightforward and genuinely how the release binaries are produced."],
+        code: [{ code: `go install github.com/getsops/sops/v3/cmd/sops@latest` }],
       },
     ],
     docs: { label: "SOPS Documentation", url: "https://github.com/getsops/sops#readme" },
@@ -3357,7 +3612,7 @@ helm install external-secrets external-secrets/external-secrets \\
       {
         heading: "Verify",
         code: [{ code: `kubectl get pods -n external-secrets` }],
-        note: "Next, create a SecretStore (pointing at your backend) and an ExternalSecret that maps remote keys into a Kubernetes Secret.",
+        note: "Next, create a SecretStore (pointing at your backend) and an ExternalSecret that maps remote keys into a Kubernetes Secret. This Helm install runs inside your cluster, so it's the same regardless of whether the nodes are RHEL-family or Debian-family.",
       },
     ],
     docs: { label: "External Secrets Documentation", url: "https://external-secrets.io/latest/" },
@@ -3406,6 +3661,7 @@ kubectl label namespace default istio-injection=enabled`,
 kubectl get pods -n istio-system`,
           },
         ],
+        note: "The download script and istioctl both work identically on RHEL and Ubuntu — Istio deploys into the cluster, it doesn't touch host packages.",
       },
     ],
     docs: { label: "Istio Documentation", url: "https://istio.io/latest/docs/" },
@@ -3446,6 +3702,7 @@ linkerd install | kubectl apply -f -`,
       {
         heading: "Verify",
         code: [{ code: `linkerd check` }],
+        note: "Same install commands regardless of host distro — the CLI is a Go binary and everything it installs lives inside the cluster.",
       },
     ],
     docs: { label: "Linkerd Documentation", url: "https://linkerd.io/2/overview/" },
@@ -3488,6 +3745,7 @@ func-e run -c envoy.yaml`,
         heading: "Verify",
         paragraphs: ["The admin interface is on port 9901:"],
         code: [{ code: `curl http://localhost:9901/ready` }],
+        note: "func-e and the Docker image both work the same on RHEL and Ubuntu. Envoy itself is open source C++ built with Bazel, but that build is heavy (an hour-plus, multiple GB of dependencies) — not a realistic quick path, which is why func-e (which fetches a prebuilt binary) is the recommended route even for contributors.",
       },
     ],
     docs: { label: "Envoy Documentation", url: "https://www.envoyproxy.io/docs" },
@@ -3530,6 +3788,7 @@ tar xzf traefik.tar.gz
       {
         heading: "Verify",
         paragraphs: ["Open http://localhost:8080 for the Traefik dashboard showing routers, services, and middlewares."],
+        note: "Traefik doesn't publish native apt/dnf packages — the Docker image and binary tarball above (both already distro-agnostic) are the two supported paths. It's Go, so `git clone https://github.com/traefik/traefik.git && make binary` is a genuine from-source build too.",
       },
     ],
     docs: { label: "Traefik Documentation", url: "https://doc.traefik.io/traefik/" },
@@ -3548,7 +3807,7 @@ tar xzf traefik.tar.gz
     prerequisites: ["An Ubuntu/Debian host with sudo access", "Backend servers to load-balance"],
     sections: [
       {
-        heading: "Install HAProxy",
+        heading: "Install HAProxy on Ubuntu (maintained PPA, latest stable)",
         code: [
           {
             code: `sudo add-apt-repository ppa:vbernat/haproxy-3.0
@@ -3556,6 +3815,14 @@ sudo apt update
 sudo apt install -y haproxy`,
           },
         ],
+      },
+      {
+        heading: "Install HAProxy on RHEL, CentOS Stream, or Fedora",
+        paragraphs: [
+          "HAProxy ships in the base/AppStream repos on RHEL-family distros, so no extra repo setup is needed — just a package name.",
+        ],
+        code: [{ code: `sudo dnf install -y haproxy` }],
+        note: "The dnf-provided version tends to lag behind the PPA's latest stable — if you need a specific newer HAProxy release on RHEL, build from source (see haproxy.org) or use their official container image instead.",
       },
       {
         heading: "Configure a simple HTTP frontend/backend",
@@ -3599,7 +3866,7 @@ sudo systemctl restart haproxy`,
     prerequisites: ["An Ubuntu/Debian host", "A domain pointed at the server for automatic TLS (optional for local testing)"],
     sections: [
       {
-        heading: "Install Caddy (APT repo)",
+        heading: "Install Caddy on Debian / Ubuntu (APT repo)",
         code: [
           {
             code: `sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
@@ -3607,6 +3874,19 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --d
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
 sudo apt update
 sudo apt install -y caddy`,
+          },
+        ],
+      },
+      {
+        heading: "Install Caddy on Fedora / RHEL (COPR)",
+        paragraphs: [
+          "Caddy's official Fedora build lives in a COPR repo rather than a yum.repos.d file — enable the copr plugin once, then treat it like any other dnf package.",
+        ],
+        code: [
+          {
+            code: `sudo dnf install -y 'dnf-command(copr)'
+sudo dnf copr enable -y @caddy/caddy
+sudo dnf install -y caddy`,
           },
         ],
       },
@@ -3659,6 +3939,8 @@ sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.g
 echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
 sudo apt-get update
 sudo apt-get install k6` },
+          { label: "RHEL / CentOS Stream / Fedora", code: `sudo dnf install https://dl.k6.io/rpm/repo.rpm -y
+sudo dnf install -y k6` },
           { label: "macOS (Homebrew)", code: `brew install k6` },
         ],
       },
@@ -3699,9 +3981,11 @@ export default function () {
       {
         heading: "Install Java and download JMeter",
         code: [
+          { label: "Ubuntu / Debian", code: `sudo apt install -y default-jdk` },
+          { label: "RHEL / CentOS Stream / Fedora", code: `sudo dnf install -y java-17-openjdk` },
           {
-            code: `sudo apt install -y default-jdk
-curl -LO https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz
+            label: "download JMeter (any distro — it's a plain tarball)",
+            code: `curl -LO https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz
 tar xzf apache-jmeter-5.6.3.tgz
 cd apache-jmeter-5.6.3`,
           },
@@ -3745,6 +4029,7 @@ cd apache-jmeter-5.6.3`,
 locust --version`,
           },
         ],
+        note: "Pure Python via pip — identical on RHEL, Fedora, Debian, and Ubuntu as long as python3-pip is installed (sudo dnf install -y python3-pip, or sudo apt install -y python3-pip).",
       },
       {
         heading: "Write a locustfile",
@@ -3941,6 +4226,18 @@ gitea web`,
       {
         heading: "Verify and finish setup",
         paragraphs: ["Open http://your-host:3000 and complete the web installer (database, admin account, and site settings)."],
+        note: "The binary and Docker image are already the same download for RHEL and Ubuntu — Gitea has no separate distro-native packages beyond community-maintained ones.",
+      },
+      {
+        heading: "Build from source",
+        paragraphs: ["Gitea is Go and fully open source under MIT, with a documented Make-based build."],
+        code: [
+          {
+            code: `git clone https://github.com/go-gitea/gitea.git
+cd gitea
+TAGS="bindata" make build`,
+          },
+        ],
       },
     ],
     docs: { label: "Gitea Documentation", url: "https://docs.gitea.com/" },
@@ -3983,6 +4280,18 @@ forgejo web`,
       {
         heading: "Verify and finish setup",
         paragraphs: ["Open http://your-host:3000 and complete the initial configuration and admin account creation."],
+        note: "Same binary and image regardless of host distro — no RHEL-specific or Ubuntu-specific step exists for Forgejo.",
+      },
+      {
+        heading: "Build from source",
+        paragraphs: ["Forgejo forked its build tooling from Gitea, so compiling it yourself follows the same Make-based flow."],
+        code: [
+          {
+            code: `git clone https://codeberg.org/forgejo/forgejo.git
+cd forgejo
+TAGS="bindata" make build`,
+          },
+        ],
       },
     ],
     docs: { label: "Forgejo Documentation", url: "https://forgejo.org/docs/latest/" },
