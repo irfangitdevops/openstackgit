@@ -43,6 +43,28 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://openstackgit.com"),
 };
 
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "OpenStack Dev",
+    url: "https://openstackgit.com",
+    logo: "https://openstackgit.com/icon.svg",
+    description:
+      "Full-stack, mobile, ERP, and DevOps development agency based in India, serving clients globally.",
+    email: "hello@openstackgit.com",
+    sameAs: ["https://github.com/irfangitdevops"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "OpenStack Dev",
+    url: "https://openstackgit.com",
+    description:
+      "Full-stack, mobile, ERP & DevOps development agency, plus a free catalog of open source DevOps tools with install guides.",
+  },
+];
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -54,6 +76,10 @@ export default function RootLayout({
       className={`${poppins.variable} h-full antialiased`}
     >
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         {ADSENSE_CLIENT_ID && (
           // Rendered as a literal <script> in the server HTML <head> (not via
           // next/script, which only emits a preload hint) so Google's AdSense

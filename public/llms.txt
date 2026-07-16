@@ -1,0 +1,38 @@
+# OpenStack Dev
+
+> OpenStack Dev is a full-stack, mobile, ERP, and DevOps development agency based in India,
+> serving clients globally. This site also hosts a free, curated catalog of open source
+> DevOps/infrastructure tools, official download hubs for Git and OpenStack, and step-by-step
+> install guides for every tool in the catalog.
+
+We design, build, and deploy production-grade web apps, mobile apps, ERP systems, and DevOps
+infrastructure. Stack: Next.js, NestJS, TypeScript, iOS Swift, Android Kotlin, PostgreSQL,
+Docker, Kubernetes.
+
+## Agency
+
+- [Home](https://openstackgit.com/): Services, portfolio, tech stack, and contact information.
+
+## Downloads
+
+- [Open Source DevOps Tools Catalog](https://openstackgit.com/downloads): ~65 open source
+  infrastructure and DevOps tools across 14 categories (IaaS, IaC, CI/CD, container
+  orchestration, monitoring, secrets management, service mesh, and more), each linking to its
+  official download source. Each tool also has a dedicated page at
+  `/downloads/{category}/{tool}` with a live version-history archive pulled from GitHub.
+- [Download Git](https://openstackgit.com/download-git): Official Git download links for
+  Windows, macOS, and every major Linux distribution.
+- [Download & Install OpenStack](https://openstackgit.com/download-openstack): Every official
+  OpenStack deployment path — DevStack, Kolla-Ansible, OpenStack-Ansible, Canonical Sunbeam,
+  RDO/Packstack, and Ubuntu Cloud Archive.
+
+## Guides
+
+- [Install Guides](https://openstackgit.com/blog): Step-by-step install and setup guides for
+  every tool in the DevOps catalog, each with prerequisites, copy-paste commands, a verification
+  step, and links to official documentation.
+
+## Contact
+
+- Email: hello@openstackgit.com
+- Contact form: https://openstackgit.com/#contact

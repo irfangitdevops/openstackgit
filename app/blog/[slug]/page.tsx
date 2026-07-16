@@ -74,17 +74,35 @@ export default async function GuidePage({
   const related = relatedGuides(guide);
   const catName = categoryName(guide.categorySlug);
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "TechArticle",
-    headline: guide.headline,
-    description: guide.summary,
-    articleSection: catName,
-    keywords: `install ${guide.toolName}, ${guide.toolName} setup`,
-    author: { "@type": "Organization", name: "OpenStack Dev" },
-    publisher: { "@type": "Organization", name: "OpenStack Dev" },
-    mainEntityOfPage: `https://openstackgit.com/blog/${guide.slug}`,
-  };
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      headline: guide.headline,
+      description: guide.summary,
+      articleSection: catName,
+      keywords: `install ${guide.toolName}, ${guide.toolName} setup`,
+      author: { "@type": "Organization", name: "OpenStack Dev" },
+      publisher: { "@type": "Organization", name: "OpenStack Dev" },
+      mainEntityOfPage: `https://openstackgit.com/blog/${guide.slug}`,
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      name: guide.headline,
+      description: guide.summary,
+      step: guide.sections.map((s) => {
+        const text = [...(s.paragraphs ?? []), ...(s.bullets ?? []), ...(s.code?.map((c) => c.code) ?? [])]
+          .join(" ")
+          .trim();
+        return {
+          "@type": "HowToStep",
+          name: s.heading,
+          text: text || s.heading,
+        };
+      }),
+    },
+  ];
 
   return (
     <>
