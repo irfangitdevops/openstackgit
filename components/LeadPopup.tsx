@@ -20,7 +20,7 @@ const inputStyle: React.CSSProperties = {
 
 export default function LeadPopup() {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", project: "", message: "", company: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", project: "", message: "", company: "" });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,19 +172,30 @@ export default function LeadPopup() {
                     style={inputStyle}
                   />
                 </div>
-                <select
-                  name="project"
-                  value={form.project}
-                  onChange={handleChange}
-                  style={{ ...inputStyle, cursor: "pointer" }}
-                >
-                  <option value="">What do you need built?</option>
-                  <option>Full-Stack Web App</option>
-                  <option>Mobile App (iOS / Android)</option>
-                  <option>ERP / Business System</option>
-                  <option>DevOps / Infrastructure</option>
-                  <option>Not sure yet</option>
-                </select>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <input
+                    name="phone"
+                    type="tel"
+                    required
+                    placeholder="Your phone number"
+                    value={form.phone}
+                    onChange={handleChange}
+                    style={inputStyle}
+                  />
+                  <select
+                    name="project"
+                    value={form.project}
+                    onChange={handleChange}
+                    style={{ ...inputStyle, cursor: "pointer" }}
+                  >
+                    <option value="">What do you need built?</option>
+                    <option>Full-Stack Web App</option>
+                    <option>Mobile App (iOS / Android)</option>
+                    <option>ERP / Business System</option>
+                    <option>DevOps / Infrastructure</option>
+                    <option>Not sure yet</option>
+                  </select>
+                </div>
                 <textarea
                   name="message"
                   rows={3}

@@ -3,6 +3,7 @@ import type { ContactSource } from "@/app/api/contact/route";
 export type LeadPayload = {
   name: string;
   email: string;
+  phone: string;
   project?: string;
   message: string;
   source: ContactSource;

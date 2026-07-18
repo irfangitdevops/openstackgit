@@ -6,6 +6,7 @@ export type ContactSource = "contact" | "chatbox" | "popup";
 type ContactPayload = {
   name?: string;
   email?: string;
+  phone?: string;
   project?: string;
   message?: string;
   source?: ContactSource;
@@ -23,6 +24,12 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function isValidPhone(phone: string): boolean {
+  // Permissive on purpose — international formats vary widely. Just require
+  // enough digits to be a real number, allowing +, spaces, dashes, parens.
+  return /^[+\d][\d\s\-()]{6,}$/.test(phone.trim());
+}
+
 export async function POST(request: Request) {
   let body: ContactPayload;
   try {
@@ -31,18 +38,21 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const { name, email, project, message, source, company } = body;
+  const { name, email, phone, project, message, source, company } = body;
 
   // Honeypot tripped — pretend success so bots don't learn to avoid it, but send nothing.
   if (company) {
     return Response.json({ ok: true });
   }
 
-  if (!name?.trim() || !email?.trim() || !message?.trim()) {
-    return Response.json({ error: "Name, email, and message are required." }, { status: 400 });
+  if (!name?.trim() || !email?.trim() || !phone?.trim() || !message?.trim()) {
+    return Response.json({ error: "Name, email, phone, and message are required." }, { status: 400 });
   }
   if (!isValidEmail(email)) {
     return Response.json({ error: "Enter a valid email address." }, { status: 400 });
+  }
+  if (!isValidPhone(phone)) {
+    return Response.json({ error: "Enter a valid phone number." }, { status: 400 });
   }
 
   const host = process.env.SMTP_HOST;
@@ -73,6 +83,7 @@ export async function POST(request: Request) {
     "",
     `Name: ${name}`,
     `Email: ${email}`,
+    `Phone: ${phone}`,
     project ? `Project type: ${project}` : null,
     "",
     "Message:",
@@ -101,6 +112,7 @@ export async function POST(request: Request) {
     `New enquiry via ${sourceLabel}\n` +
     `Name: ${name}\n` +
     `Email: ${email}\n` +
+    `Phone: ${phone}\n` +
     (project ? `Project: ${project}\n` : "") +
     `Message: ${message.length > 200 ? message.slice(0, 200) + "…" : message}`;
   await sendWhatsApp(whatsappText);

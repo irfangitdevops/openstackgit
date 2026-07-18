@@ -16,7 +16,7 @@ const inputStyle: React.CSSProperties = {
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", message: "", company: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "", company: "" });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export default function ChatWidget() {
     setTimeout(() => {
       setSent(false);
       setError(null);
-      setForm({ name: "", email: "", message: "", company: "" });
+      setForm({ name: "", email: "", phone: "", message: "", company: "" });
     }, 300);
   };
 
@@ -131,6 +131,15 @@ export default function ChatWidget() {
                   required
                   placeholder="Your email"
                   value={form.email}
+                  onChange={handleChange}
+                  style={inputStyle}
+                />
+                <input
+                  name="phone"
+                  type="tel"
+                  required
+                  placeholder="Your phone number"
+                  value={form.phone}
                   onChange={handleChange}
                   style={inputStyle}
                 />

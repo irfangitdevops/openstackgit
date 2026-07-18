@@ -3,7 +3,7 @@ import { useState } from "react";
 import { submitLead } from "@/lib/submitLead";
 
 export default function Contact() {
-  const [form, setForm] = useState({ name: "", email: "", project: "", message: "", company: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", project: "", message: "", company: "" });
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -232,27 +232,45 @@ export default function Contact() {
                   </div>
                 </div>
 
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>
-                    Project Type
-                  </label>
-                  <select
-                    name="project"
-                    value={form.project}
-                    onChange={handleChange}
-                    style={{ ...inputStyle, cursor: "pointer" }}
-                    onFocus={(e) => (e.target.style.borderColor = "var(--primary)")}
-                    onBlur={(e) => (e.target.style.borderColor = "var(--border)")}
-                  >
-                    <option value="">Select a service...</option>
-                    <option>Full-Stack Web App</option>
-                    <option>Mobile App (iOS / Android)</option>
-                    <option>ERP / Business System</option>
-                    <option>Marketing Website</option>
-                    <option>DevOps / Infrastructure</option>
-                    <option>Security Audit</option>
-                    <option>Other</option>
-                  </select>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>
+                      Phone Number *
+                    </label>
+                    <input
+                      name="phone"
+                      type="tel"
+                      required
+                      placeholder="+1 234 567 8900"
+                      value={form.phone}
+                      onChange={handleChange}
+                      style={inputStyle}
+                      onFocus={(e) => (e.target.style.borderColor = "var(--primary)")}
+                      onBlur={(e) => (e.target.style.borderColor = "var(--border)")}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>
+                      Project Type
+                    </label>
+                    <select
+                      name="project"
+                      value={form.project}
+                      onChange={handleChange}
+                      style={{ ...inputStyle, cursor: "pointer" }}
+                      onFocus={(e) => (e.target.style.borderColor = "var(--primary)")}
+                      onBlur={(e) => (e.target.style.borderColor = "var(--border)")}
+                    >
+                      <option value="">Select a service...</option>
+                      <option>Full-Stack Web App</option>
+                      <option>Mobile App (iOS / Android)</option>
+                      <option>ERP / Business System</option>
+                      <option>Marketing Website</option>
+                      <option>DevOps / Infrastructure</option>
+                      <option>Security Audit</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
